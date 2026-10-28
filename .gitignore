@@ -1,0 +1,7 @@
+.terraform/
+*.tfstate*
+*.tfvars
+!*.tfvars.example
+.deps_age_cache
+/build/
+*.zip

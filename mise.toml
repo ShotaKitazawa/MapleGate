@@ -1,0 +1,95 @@
+[tools]
+go = "1.26"
+node = "24"
+terraform = "1.13"
+shellcheck = "latest"
+"go:golang.org/x/tools/cmd/goimports" = "latest"
+
+[tasks.format]
+run = """
+  goimports -w lambda internal node &&
+  terraform fmt -recursive infra
+"""
+
+[tasks.test-backend]
+run = "go test ./..."
+
+[tasks.ci]
+run = """
+  mise run ci-install &&
+  mise run ci-deps &&
+  mise run ci-fmt &&
+  mise run ci-lint &&
+  mise run ci-test &&
+  mise run ci-build
+"""
+
+[tasks.ci-install]
+run = "go mod download"
+
+[tasks.ci-deps]
+run = "node scripts/check_deps_age_backend.ts"
+
+[tasks.ci-fmt]
+run = """
+  test -z "$(goimports -l lambda internal node)" &&
+  terraform fmt -check -recursive infra
+"""
+
+[tasks.ci-lint]
+run = """
+  go vet ./... &&
+  go vet -tags integration ./lambda/integration/ &&
+  shellcheck node/*.sh
+"""
+
+[tasks.ci-test]
+run = """
+  go test ./...
+"""
+
+[tasks.ci-build]
+run = """
+  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/session &&
+  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/discord &&
+  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/janitor &&
+  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./node/agent/cmd/vpn-agent
+"""
+
+[tasks.test-dynamodb]
+run = """
+  container rm -f gamevpn-ddb >/dev/null 2>&1 || true
+  container run -d --name gamevpn-ddb -p 127.0.0.1:8000:8000 amazon/dynamodb-local:latest >/dev/null || exit 1
+  until nc -z 127.0.0.1 8000; do sleep 1; done
+  DYNAMODB_ENDPOINT=http://127.0.0.1:8000 go test -count=1 ./internal/store/...
+  rc=$?
+  container rm -f gamevpn-ddb >/dev/null 2>&1 || true
+  exit $rc
+"""
+
+[tasks.test-integration]
+run = "go test -tags integration -count=1 -timeout 15m ./lambda/integration/..."
+
+[tasks.ci-terraform]
+run = """
+  for d in infra/bootstrap infra/main; do
+    terraform -chdir=$d init -backend=false &&
+    terraform -chdir=$d validate || exit 1
+  done
+"""
+
+[tasks.pre-merge]
+run = """
+  mise run format &&
+  mise run ci
+"""
+
+[tasks.build]
+run = """
+  for f in session discord janitor; do
+    mkdir -p build/$f &&
+    GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o build/$f/bootstrap ./lambda/cmd/$f || exit 1
+  done &&
+  mkdir -p build/agent &&
+  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o build/agent/vpn-agent ./node/agent/cmd/vpn-agent
+"""
