@@ -22,6 +22,7 @@ type Config struct {
 	MsgSyncGiveUp     time.Duration
 	StartCooldown     time.Duration
 	BreakerLimit      int
+	ExtendEvery       time.Duration
 	UnresponsiveAfter time.Duration
 	OverstayAfter     time.Duration
 	AlertRepeat       time.Duration
@@ -44,6 +45,7 @@ func Load() (Config, error) {
 		MsgSyncGiveUp:     envDur("MSG_SYNC_GIVEUP", time.Hour),
 		StartCooldown:     envDur("START_COOLDOWN", 15*time.Minute),
 		BreakerLimit:      envInt("START_BREAKER_LIMIT", 2),
+		ExtendEvery:       envDur("SESSION_EXTEND_EVERY", 30*time.Minute),
 		UnresponsiveAfter: envDur("NODE_UNRESPONSIVE_AFTER", 10*time.Minute),
 		OverstayAfter:     envDur("NODE_OVERSTAY_AFTER", 35*time.Minute),
 		AlertRepeat:       envDur("NODE_ALERT_REPEAT", time.Hour),

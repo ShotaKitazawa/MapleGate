@@ -9,12 +9,13 @@ locals {
   param_arn    = "arn:aws:ssm:us-west-2:${local.account_id}:parameter${local.param_prefix}/*"
   discord_arn  = "arn:aws:lambda:us-west-2:${local.account_id}:function:${local.discord_name}"
   lambda_env = {
-    TABLE_NAME     = aws_dynamodb_table.gamevpn.name
-    INSTANCE_ID    = aws_instance.vpn.id
-    PARAM_PREFIX   = local.param_prefix
-    WG_PORT        = tostring(var.wg_port)
-    SESSION_TTL    = var.session_ttl
-    HANDSHAKE_IDLE = "${var.handshake_idle_seconds}s"
+    TABLE_NAME           = aws_dynamodb_table.gamevpn.name
+    INSTANCE_ID          = aws_instance.vpn.id
+    PARAM_PREFIX         = local.param_prefix
+    WG_PORT              = tostring(var.wg_port)
+    SESSION_TTL          = var.session_ttl
+    SESSION_EXTEND_EVERY = var.session_extend_every
+    HANDSHAKE_IDLE       = "${var.handshake_idle_seconds}s"
   }
   functions = toset(["session", "discord", "janitor"])
 }

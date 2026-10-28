@@ -186,6 +186,10 @@ func nodeOwnership(t *testing.T, s Full) {
 func ipLease(t *testing.T, s Full) {
 	require.NoError(t, s.LeaseIP(ctx, "10.66.0.2", "s1", time.Now().Add(time.Hour)))
 	assert.ErrorIs(t, s.LeaseIP(ctx, "10.66.0.2", "s2", time.Now().Add(time.Hour)), store.ErrConflict)
+	assert.ErrorIs(t, s.LeaseIP(ctx, "10.66.0.2", "s1", time.Now().Add(time.Hour)), store.ErrConflict, "even the holder cannot acquire it twice")
+	assert.NoError(t, s.RenewLease(ctx, "10.66.0.2", "s1", time.Now().Add(2*time.Hour)))
+	assert.ErrorIs(t, s.RenewLease(ctx, "10.66.0.2", "s2", time.Now().Add(2*time.Hour)), store.ErrConflict, "only the holder renews")
+	assert.ErrorIs(t, s.RenewLease(ctx, "10.66.0.9", "s1", time.Now().Add(2*time.Hour)), store.ErrConflict, "nothing to renew")
 	require.NoError(t, s.ReleaseIP(ctx, "10.66.0.2", "s2"))
 	assert.ErrorIs(t, s.LeaseIP(ctx, "10.66.0.2", "s3", time.Now().Add(time.Hour)), store.ErrConflict, "a release by a non-holder is ignored")
 	require.NoError(t, s.ReleaseIP(ctx, "10.66.0.2", "s1"))

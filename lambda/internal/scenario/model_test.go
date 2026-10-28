@@ -191,7 +191,7 @@ func newWorld(t *testing.T, seed int64) *world {
 		Cfg: janitor.Config{
 			ProvisionTimeout: 5 * time.Minute, HandshakeIdle: 10 * time.Minute, StaleAfter: 2 * time.Minute,
 			MsgSyncGiveUp: time.Hour, StartCooldown: 15 * time.Minute, BreakerLimit: 2,
-			InstanceID: "i-1", UnresponsiveAfter: 10 * time.Minute, OverstayAfter: 35 * time.Minute, AlertRepeat: time.Hour,
+			SessionTTL: 4 * time.Hour, ExtendEvery: 30 * time.Minute, InstanceID: "i-1", UnresponsiveAfter: 10 * time.Minute, OverstayAfter: 35 * time.Minute, AlertRepeat: time.Hour,
 		},
 		Store: w.st, EC2: fakeEC2{w}, Discord: fakeDiscord{w},
 		ChannelID: func(context.Context) (string, error) { return "ch", nil },
@@ -436,7 +436,8 @@ func (w *world) quiesce() {
 		w.t.Fatalf("live sessions but the node is %s\n%s", w.state, w.dump())
 	}
 
-	// everything must eventually be reclaimed once all deadlines have passed
+	// a session in use is extended for as long as it is used, so it is reclaimed only once the players stop
+	w.chatty = false
 	w.advance(6 * time.Hour)
 	for _, s := range w.st.Sessions() {
 		if !s.Status.Terminal() {

@@ -1,6 +1,7 @@
 package janitor
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -156,4 +157,74 @@ func TestAnUnknownInstanceStateRaisesNothing(t *testing.T) {
 	e.minutes(t, 90, false)
 
 	assert.Empty(t, e.dc.posts)
+}
+
+func (e *env) expiresAt(t *testing.T, sid string) time.Time {
+	s, err := e.st.GetSession(ctx, sid)
+	require.NoError(t, err)
+	w, err := e.st.GetWork(ctx, sid)
+	require.NoError(t, err)
+	require.Equal(t, s.ExpiresAt, w.ExpiresAt, "META and WORK must always agree on the deadline")
+	return s.ExpiresAt
+}
+
+func TestASessionInUseOutlivesItsTTL(t *testing.T) {
+	e := newEnv()
+	e.approved(t, "s1", "alice", "10.66.0.2")
+	first := e.expiresAt(t, "s1")
+
+	e.minutes(t, 7*60, true)
+
+	assert.Equal(t, store.StatusApproved, e.status(t, "s1"), "seven hours of use against a 4 hour TTL")
+	assert.True(t, e.expiresAt(t, "s1").After(first.Add(5*time.Hour)), "the deadline moved with the use")
+	assert.True(t, e.expiresAt(t, "s1").After(e.now.Add(3*time.Hour)), "and it is never close to ending while in use")
+	id, err := e.st.ActiveSessionID(ctx, "alice")
+	require.NoError(t, err)
+	assert.Equal(t, "s1", id)
+}
+
+func TestASessionIsNotExtendedUntilItNeedsIt(t *testing.T) {
+	e := newEnv()
+	e.approved(t, "s1", "alice", "10.66.0.2")
+	first := e.expiresAt(t, "s1")
+
+	e.minutes(t, 20, true)
+
+	assert.Equal(t, first, e.expiresAt(t, "s1"), "writes are saved until the deadline is within the extension window")
+}
+
+func TestASessionIsNotExtendedWhileTheNodeIsSilent(t *testing.T) {
+	e := newEnv()
+	e.approved(t, "s1", "alice", "10.66.0.2")
+	e.minutes(t, 60, true)
+	first := e.expiresAt(t, "s1")
+
+	e.minutes(t, 5*60, false)
+
+	assert.Equal(t, store.StatusExpired, e.status(t, "s1"), "with nobody to vouch for it the TTL ends it")
+	assert.True(t, first.Before(e.now))
+}
+
+// leaseSpy records renewals: the in-memory store has no lease clock, so only the call itself can be observed here.
+type leaseSpy struct {
+	*store.Mem
+	renewed map[string][]time.Time
+}
+
+func (s *leaseSpy) RenewLease(c context.Context, addr, sid string, until time.Time) error {
+	s.renewed[addr] = append(s.renewed[addr], until)
+	return s.Mem.RenewLease(c, addr, sid, until)
+}
+
+func TestAnExtensionRenewsTheLeaseOfTheAddress(t *testing.T) {
+	e := newEnv()
+	spy := &leaseSpy{Mem: e.st, renewed: map[string][]time.Time{}}
+	e.j.Store = spy
+	e.approved(t, "s1", "alice", "10.66.0.2")
+
+	e.minutes(t, 5*60, true)
+
+	require.NotEmpty(t, spy.renewed["10.66.0.2"], "an address whose lease is not renewed is up for grabs once the original one runs out")
+	assert.True(t, spy.renewed["10.66.0.2"][len(spy.renewed["10.66.0.2"])-1].After(e.now.Add(3*time.Hour)))
+	assert.ErrorIs(t, e.st.LeaseIP(ctx, "10.66.0.2", "other", e.now.Add(time.Hour)), store.ErrConflict)
 }

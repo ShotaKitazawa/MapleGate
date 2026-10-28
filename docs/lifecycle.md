@@ -38,7 +38,7 @@ The API status is derived: `approved` with `WORK.applied_boot_id == NODE.boot_id
 
 - session-api: POST creates META + WORK + ACTIVE in one transaction; 409 carries the existing session_id. It never touches the instance. GET and DELETE touch DynamoDB only.
 - discord-interactions: immediate ack, then async self-invoke. Approval = lease IP, conditional transition (release the lease if it lost). It never touches the instance. Signed timestamps older than 5 min are rejected.
-- janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when an approved session exists and it is stopped (breaker-guarded), the only place the node is started from; release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; post to Discord when the node is silent or stays up with no approved session (see B13, B14); write HEALTH.
+- janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when an approved session exists and it is stopped (breaker-guarded), the only place the node is started from; extend the deadline of a session in use (see Session lifetime); release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; post to Discord when the node is silent or stays up with no approved session (see B13, B14); write HEALTH.
 - vpn-agent (node, tick 10 s, heartbeat 30 s): converge peers on WORK (validated, full diff), report observations, decide to stop.
 
 ## Agent modes
@@ -49,7 +49,7 @@ The API status is derived: `approved` with `WORK.applied_boot_id == NODE.boot_id
 
 ## Parameters
 
-AGENT_TICK 10s, HEARTBEAT 30s, STALE 120s, BOOT_GRACE 10m, IDLE_STOP 15m, BLIND_PEER0_STOP 30m, BLIND_MAX unlimited, NODE_UNRESPONSIVE_AFTER 10m, NODE_OVERSTAY_AFTER 35m, NODE_ALERT_REPEAT 1h, START_BREAKER 2 consecutive / cooldown 15m, PARAMS_CACHE_TTL 5m, DISCORD_TS_TOLERANCE 5m, MSG_SYNC_GIVEUP 1h, CLOCK_MARGIN 30s.
+AGENT_TICK 10s, HEARTBEAT 30s, STALE 120s, BOOT_GRACE 10m, IDLE_STOP 15m, BLIND_PEER0_STOP 30m, BLIND_MAX unlimited, SESSION_EXTEND_EVERY 30m, NODE_UNRESPONSIVE_AFTER 10m, NODE_OVERSTAY_AFTER 35m, NODE_ALERT_REPEAT 1h, START_BREAKER 2 consecutive / cooldown 15m, PARAMS_CACHE_TTL 5m, DISCORD_TS_TOLERANCE 5m, MSG_SYNC_GIVEUP 1h, CLOCK_MARGIN 30s.
 
 ## Failure catalogue
 
@@ -148,3 +148,11 @@ There is no automatic backstop for a node that does not stop: no uptime cap, bec
 Nothing starts the node before an approval. A request that is refused, or that nobody answers, costs no start, and a person who may only ask cannot boot the instance. The janitor starts it for an approved session within its next run (at most a minute, the Scheduler's finest interval), then the boot follows. The price is that a cold start after approval takes that minute longer than a node warmed during the wait would. Starting from the approval handler as well would save it, at the cost of two starters, a start outside the breaker, and EC2 rights on a public Lambda; the janitor stays the only one. The provisioning timeout of 5 minutes has to cover the wait, the boot and the first apply.
 
 Only an approved session keeps a running node up (`Status.NeedsNode`). A request still waiting for approval does not: with no pre-warmed node there is nothing to protect, and counting it would let a stream of unanswered requests hold the node open. The cost is that an idle node about to stop may do so just before an approval arrives and then start again.
+
+## Session lifetime
+
+An approved session lasts SESSION_TTL (4 hours) from approval, and the janitor extends it while it is in use, so a player is never cut off mid-game. In use means the node is healthy (fresh heartbeat, peer applied on this boot) and the session has a recent handshake, the same signal the idle rule uses. Each janitor run extends a session whose remaining time has fallen below SESSION_TTL minus SESSION_EXTEND_EVERY to now plus SESSION_TTL, never shorter. Writes stay rare (every 30 minutes at most) because the table is provisioned at 1 WCU and an extension is a four item transaction.
+
+An extension moves the deadline in META, in WORK and in the user's active slot, and renews the IP lease first, so that a failure after it is retried on the next run. Renewal is its own operation: the approval path releases an address it failed to use, so an acquisition that also succeeded for the current holder would let a duplicate approval free the address of the session that won (the model test found this).
+
+What the TTL is for now: if the janitor stops, nothing extends, and a session ends within SESSION_TTL minus the extension interval at the earliest, which tolerates a janitor outage of about three and a half hours. The node enforces the deadline by itself (plan.go), so this holds without any other component. What it does not cover: a handshake signal that is wrong in the "in use" direction would extend a session that nobody uses. The cost is a node left running at about a cent an hour; nothing is done about it automatically, and a janitor that has stopped is the failure to alarm on (Phase 6), not the length of a session.

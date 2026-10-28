@@ -46,7 +46,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 |---|---|---|---|---|
 | S1 | A request nobody approves expires at the approval deadline (15 minutes) | `expired`, message updated, node idles out | both | safe |
 | S2 | DELETE while pending | `closed`, buttons replaced by the outcome, no peer ever added | both | safe |
-| S4 | An approved session ends at its TTL (4 hours; the approval deadline is a different timer) | with `session_ttl` set to 5m: `expired`, peer removed, IP freed; then put it back | claude | reversible |
+| S4 | An approved session in use is extended and one nobody uses is not | with `session_ttl` 6m and `session_extend_every` 3m, a connected session stays `active` past 6 minutes and its `expires_at` moves; with no handshake it closes as `idle`; with the janitor not running it ends at the TTL; then put both back | both | reversible |
 | S6 | Approval on a stopped node when the janitor starts it | `active` within the provisioning timeout from a cold start | claude | safe |
 
 ### Node failures

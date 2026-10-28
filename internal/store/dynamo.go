@@ -304,6 +304,19 @@ func (d *Dynamo) LeaseIP(ctx context.Context, addr, sid string, until time.Time)
 	return conflict(err)
 }
 
+// RenewLease is separate from LeaseIP on purpose: the approval path releases an address it fails to use, so an acquisition
+// that also succeeded for the current holder would let a duplicate approval free the address of the session that won.
+func (d *Dynamo) RenewLease(ctx context.Context, addr, sid string, until time.Time) error {
+	_, err := d.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: &d.Table, Key: key("IP#"+addr, "LEASE"),
+		UpdateExpression:          aws.String("SET #ttl = :ttl"),
+		ConditionExpression:       aws.String("session_id = :sid"),
+		ExpressionAttributeNames:  map[string]string{"#ttl": "ttl"},
+		ExpressionAttributeValues: item{":sid": s(sid), ":ttl": t(until.Add(ttlGrace))},
+	})
+	return conflict(err)
+}
+
 func (d *Dynamo) ReleaseIP(ctx context.Context, addr, sid string) error {
 	_, err := d.Client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &d.Table, Key: key("IP#"+addr, "LEASE"),

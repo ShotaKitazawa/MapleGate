@@ -335,7 +335,7 @@ func newCluster(t *testing.T, opts nodeOpts) *cluster {
 		Cfg: janitor.Config{
 			ProvisionTimeout: 90 * time.Second, HandshakeIdle: 10 * time.Minute, StaleAfter: 2 * time.Minute,
 			MsgSyncGiveUp: time.Hour, StartCooldown: 15 * time.Minute, BreakerLimit: 2,
-			InstanceID: "i-1", UnresponsiveAfter: 10 * time.Minute, OverstayAfter: 35 * time.Minute, AlertRepeat: time.Hour,
+			SessionTTL: 4 * time.Hour, ExtendEvery: 30 * time.Minute, InstanceID: "i-1", UnresponsiveAfter: 10 * time.Minute, OverstayAfter: 35 * time.Minute, AlertRepeat: time.Hour,
 		},
 		Store: c.st, EC2: c.ec2, Discord: fd,
 		ChannelID: func(context.Context) (string, error) { return "ch", nil },

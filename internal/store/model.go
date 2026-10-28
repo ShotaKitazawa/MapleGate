@@ -122,6 +122,8 @@ type Store interface {
 
 	// LeaseIP fails with ErrConflict when addr is already leased.
 	LeaseIP(ctx context.Context, addr, sid string, until time.Time) error
+	// RenewLease moves the lease of a session that holds addr; it fails with ErrConflict for anyone else.
+	RenewLease(ctx context.Context, addr, sid string, until time.Time) error
 	// ReleaseIP frees addr only while sid still holds it, so a repeated release cannot take a newer lease.
 	ReleaseIP(ctx context.Context, addr, sid string) error
 

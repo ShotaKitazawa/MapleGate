@@ -43,6 +43,12 @@ variable "session_ttl" {
   default = "4h"
 }
 
+# A session in use is extended to now + session_ttl once it has run this long without being extended; keep it below session_ttl.
+variable "session_extend_every" {
+  type    = string
+  default = "30m"
+}
+
 variable "log_retention_days" {
   type    = number
   default = 14

@@ -20,6 +20,8 @@ type Config struct {
 	StartCooldown    time.Duration
 	BreakerLimit     int
 
+	SessionTTL        time.Duration
+	ExtendEvery       time.Duration
 	InstanceID        string
 	UnresponsiveAfter time.Duration
 	OverstayAfter     time.Duration
@@ -129,9 +131,32 @@ func (j *Janitor) deadlines(ctx context.Context, w store.Work, node store.Node, 
 				store.Update{Error: "the node did not apply the peer", CloseReason: "error"})
 		case store.Visible(w.Phase, w, node, now, j.Cfg.StaleAfter) == "active" && now.Sub(lastSign(w)) > j.Cfg.HandshakeIdle:
 			return move(store.StatusApproved, store.StatusClosed, store.Update{CloseReason: "idle"})
+		case j.Cfg.SessionTTL > 0 && store.Visible(w.Phase, w, node, now, j.Cfg.StaleAfter) == "active" &&
+			w.ExpiresAt.Sub(now) < j.Cfg.SessionTTL-j.Cfg.ExtendEvery:
+			j.extend(ctx, w, now)
 		}
 	}
 	return w.Phase
+}
+
+// extend keeps a session that is in use from ending at its TTL. Reaching here means the node is healthy and the
+// handshake is recent, so the TTL only ever ends a session whose extension has stopped, that is, when the janitor is down.
+// The lease goes first so that a failure after it is retried on the next run instead of leaving an address free to take.
+func (j *Janitor) extend(ctx context.Context, w store.Work, now time.Time) {
+	until := now.Add(j.Cfg.SessionTTL)
+	err := j.Store.RenewLease(ctx, w.Address, w.SID, until)
+	if errors.Is(err, store.ErrConflict) {
+		// the lease is gone, for instance expired by its own TTL: take the address back if nobody else has
+		err = j.Store.LeaseIP(ctx, w.Address, w.SID, until)
+	}
+	if err != nil {
+		slog.Error("renew lease", "session", w.SID, "err", err)
+		return
+	}
+	err = j.Store.Transition(ctx, w.SID, []store.Status{store.StatusApproved}, store.StatusApproved, store.Update{ExpiresAt: until})
+	if err != nil && !errors.Is(err, store.ErrConflict) {
+		slog.Error("extend session", "session", w.SID, "err", err)
+	}
 }
 
 // lastSign is the newest evidence the peer is in use; applying counts so a node restart restarts the clock.

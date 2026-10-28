@@ -62,7 +62,7 @@ func newEnv() *env {
 		Cfg: Config{
 			ProvisionTimeout: 5 * time.Minute, HandshakeIdle: 10 * time.Minute, StaleAfter: 2 * time.Minute,
 			MsgSyncGiveUp: time.Hour, StartCooldown: 15 * time.Minute, BreakerLimit: 2,
-			InstanceID: "i-1", UnresponsiveAfter: 10 * time.Minute, OverstayAfter: 35 * time.Minute, AlertRepeat: time.Hour,
+			SessionTTL: 4 * time.Hour, ExtendEvery: 30 * time.Minute, InstanceID: "i-1", UnresponsiveAfter: 10 * time.Minute, OverstayAfter: 35 * time.Minute, AlertRepeat: time.Hour,
 		},
 		Store: e.st, EC2: e.ec2, Discord: e.dc,
 		ChannelID: func(context.Context) (string, error) { return "ch", nil },

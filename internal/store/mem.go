@@ -162,6 +162,15 @@ func (m *Mem) LeaseIP(_ context.Context, addr, sid string, _ time.Time) error {
 	return nil
 }
 
+func (m *Mem) RenewLease(_ context.Context, addr, sid string, _ time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.leases[addr] != sid {
+		return ErrConflict
+	}
+	return nil
+}
+
 func (m *Mem) ReleaseIP(_ context.Context, addr, sid string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
