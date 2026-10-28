@@ -1,0 +1,47 @@
+#cloud-config
+# Kept deliberately small and stable: everything else ships through S3 and is fetched on every boot,
+# so changing the node never requires replacing the instance (and its server key).
+write_files:
+  - path: /etc/gamevpn/env
+    permissions: "0644"
+    content: |
+      BUCKET=${bucket}
+      AWS_REGION=${region}
+      TABLE_NAME=${table}
+      PUBKEY_PARAM=${pubkey_param}
+      WG_ADDRESS=${wg_address}
+      WG_PORT=${wg_port}
+      WG_SUBNET=${wg_subnet}
+      BOOT_GRACE=${boot_grace}
+      IDLE_STOP=${idle_stop}
+      HANDSHAKE_IDLE=${handshake_idle}
+  - path: /usr/local/bin/vpn-bootstrap
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      set -uo pipefail
+      . /etc/gamevpn/env
+      mkdir -p /opt/gamevpn/node
+      aws s3 sync "s3://$BUCKET/node/" /opt/gamevpn/node/ --delete --only-show-errors || echo "using cached node scripts" >&2
+      chmod +x /opt/gamevpn/node/setup.sh
+      exec /opt/gamevpn/node/setup.sh
+  - path: /etc/systemd/system/vpn-bootstrap.service
+    content: |
+      [Unit]
+      Description=Fetch and run the node setup
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      Restart=on-failure
+      RestartSec=30
+      ExecStart=/usr/local/bin/vpn-bootstrap
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable --now vpn-bootstrap.service

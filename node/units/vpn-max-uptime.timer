@@ -1,0 +1,8 @@
+[Unit]
+Description=Power off after the absolute uptime cap, whatever else is broken
+
+[Timer]
+OnBootSec=5h
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,6 @@
+[Unit]
+Description=Promote or roll back a new vpn-agent binary
+
+[Service]
+Type=oneshot
+ExecStart=/opt/gamevpn/agent-promote.sh

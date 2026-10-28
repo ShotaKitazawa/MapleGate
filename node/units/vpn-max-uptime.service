@@ -1,0 +1,6 @@
+[Unit]
+Description=Absolute uptime cap
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl poweroff

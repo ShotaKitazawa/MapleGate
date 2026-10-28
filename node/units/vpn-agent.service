@@ -1,0 +1,17 @@
+[Unit]
+Description=Converge WireGuard peers on DynamoDB
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/gamevpn/env
+ExecStart=/opt/gamevpn/agent-run.sh
+Restart=always
+RestartSec=5
+NotifyAccess=main
+WatchdogSec=60
+MemoryMax=200M
+
+[Install]
+WantedBy=multi-user.target
