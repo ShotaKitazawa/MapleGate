@@ -119,7 +119,7 @@ func (e *env) advance(d time.Duration) { e.now = e.now.Add(d); e.uptime += d }
 func (e *env) approve(t *testing.T, sid string, n byte) store.Work {
 	require.NoError(t, e.st.CreateSession(ctx, store.Session{
 		ID: sid, User: "u-" + sid, PublicKey: key(n), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute),
-	}, e.now, 0))
+	}, e.now))
 	require.NoError(t, e.st.Transition(ctx, sid, []store.Status{store.StatusPending}, store.StatusApproved, store.Update{
 		Address: "10.66.0." + string(rune('0'+n)), ExpiresAt: e.now.Add(4 * time.Hour), ApprovedAt: e.now,
 	}))
@@ -194,7 +194,7 @@ func TestDeleteRemovesPeerAndConfirms(t *testing.T) {
 
 func TestPendingSessionIsNotApplied(t *testing.T) {
 	e := newEnv()
-	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(time.Hour)}, e.now, 0))
+	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(time.Hour)}, e.now))
 	e.tick(t)
 	assert.Empty(t, e.wg.peers)
 }
@@ -370,7 +370,7 @@ func TestStopsOnlyAfterIdleGraceAndRecheck(t *testing.T) {
 
 func TestPendingSessionKeepsTheNodeUp(t *testing.T) {
 	e := newEnv()
-	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now, 0))
+	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now))
 	e.tick(t)
 	e.advance(14 * time.Minute)
 	e.tick(t)
@@ -381,7 +381,7 @@ func TestPendingSessionKeepsTheNodeUp(t *testing.T) {
 
 func TestExpiredPendingNoLongerKeepsTheNodeUp(t *testing.T) {
 	e := newEnv()
-	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now, 0))
+	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now))
 	e.advance(16 * time.Minute)
 	e.tick(t)
 	e.advance(16 * time.Minute)
@@ -408,7 +408,7 @@ func TestLateSessionCancelsTheStop(t *testing.T) {
 	e.advance(2 * time.Minute)
 	// a session appears between the first read and the re-check
 	e.a.Store = &racingStore{flakyStore: e.st, onSecondList: func() {
-		_ = e.st.CreateSession(ctx, store.Session{ID: "s9", User: "z", PublicKey: key(9), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now, 0)
+		_ = e.st.CreateSession(ctx, store.Session{ID: "s9", User: "z", PublicKey: key(9), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now)
 	}}
 	e.tick(t)
 	assert.Equal(t, 0, e.poweroff)

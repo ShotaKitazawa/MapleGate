@@ -37,7 +37,6 @@ func t(v time.Time) types.AttributeValue {
 func key(pk, sk string) item     { return item{"PK": s(pk), "SK": s(sk)} }
 func sessionKey(id string) item  { return key("SESSION#"+id, "META") }
 func activeKey(user string) item { return key("USER#"+user, "ACTIVE") }
-func rateKey(user string) item   { return key("USER#"+user, "RATELIMIT") }
 func workKey(sid string) item    { return key(workPK, sid) }
 func nodeKey() item              { return key("NODE", "vpn") }
 func healthKey() item            { return key("HEALTH", "janitor") }
@@ -116,7 +115,7 @@ func (d *Dynamo) update(ctx context.Context, k item, u *upd, cond string, names 
 	return conflict(err)
 }
 
-func (d *Dynamo) CreateSession(ctx context.Context, sess Session, now time.Time, rateLimit time.Duration) error {
+func (d *Dynamo) CreateSession(ctx context.Context, sess Session, now time.Time) error {
 	meta := with(sessionKey(sess.ID),
 		"user", s(sess.User), "public_key", s(sess.PublicKey), "status", s(string(sess.Status)),
 		"msg_synced", b(false), "created_at", t(sess.CreatedAt), "expires_at", t(sess.ExpiresAt),
@@ -126,7 +125,6 @@ func (d *Dynamo) CreateSession(ctx context.Context, sess Session, now time.Time,
 		"expires_at", t(sess.ExpiresAt), "msg_synced", b(false))
 	active := with(activeKey(sess.User),
 		"session_id", s(sess.ID), "expires_at", t(sess.ExpiresAt), "ttl", t(sess.ExpiresAt.Add(ttlGrace)))
-	rl := with(rateKey(sess.User), "last_start_at", t(now), "ttl", t(now.Add(rateLimit+ttlGrace)))
 
 	// The cancellation reasons are mapped back by index, so the order here is part of the contract.
 	_, err := d.Client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{
@@ -137,11 +135,6 @@ func (d *Dynamo) CreateSession(ctx context.Context, sess Session, now time.Time,
 				ConditionExpression:       aws.String("attribute_not_exists(PK) OR expires_at < :now"),
 				ExpressionAttributeValues: item{":now": t(now)},
 			}},
-			{Put: &types.Put{
-				TableName: &d.Table, Item: rl,
-				ConditionExpression:       aws.String("attribute_not_exists(PK) OR last_start_at <= :cutoff"),
-				ExpressionAttributeValues: item{":cutoff": t(now.Add(-rateLimit))},
-			}},
 			{Put: &types.Put{TableName: &d.Table, Item: work, ConditionExpression: aws.String("attribute_not_exists(PK)")}},
 		},
 	})
@@ -151,11 +144,8 @@ func (d *Dynamo) CreateSession(ctx context.Context, sess Session, now time.Time,
 			if aws.ToString(r.Code) != "ConditionalCheckFailed" {
 				continue
 			}
-			switch i {
-			case 1:
+			if i == 1 {
 				return ErrActive
-			case 2:
-				return ErrRateLimited
 			}
 		}
 	}
@@ -284,12 +274,9 @@ func (d *Dynamo) Transition(ctx context.Context, id string, from []Status, to St
 	}
 
 	// Outside the transaction: a conditional delete inside it would cancel the whole transition when the slot is already gone.
-	// The janitor repeats both for terminal sessions, so a failure here only delays them.
+	// The janitor repeats it for terminal sessions, so a failure here only delays it.
 	if to.Terminal() {
 		_ = d.ClearActive(ctx, sess.User, id)
-		if u.RefundRateLimit {
-			_, _ = d.Client.DeleteItem(ctx, &dynamodb.DeleteItemInput{TableName: &d.Table, Key: rateKey(sess.User)})
-		}
 	}
 	return nil
 }

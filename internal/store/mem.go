@@ -9,14 +9,13 @@ import (
 
 // Mem is an in-memory implementation of Store and NodeStore for tests.
 type Mem struct {
-	mu        sync.Mutex
-	sessions  map[string]Session
-	work      map[string]Work
-	active    map[string]activeEntry
-	lastStart map[string]time.Time
-	leases    map[string]string
-	node      *Node
-	health    Health
+	mu       sync.Mutex
+	sessions map[string]Session
+	work     map[string]Work
+	active   map[string]activeEntry
+	leases   map[string]string
+	node     *Node
+	health   Health
 }
 
 type activeEntry struct {
@@ -26,22 +25,18 @@ type activeEntry struct {
 
 func NewMem() *Mem {
 	return &Mem{
-		sessions:  map[string]Session{},
-		work:      map[string]Work{},
-		active:    map[string]activeEntry{},
-		lastStart: map[string]time.Time{},
-		leases:    map[string]string{},
+		sessions: map[string]Session{},
+		work:     map[string]Work{},
+		active:   map[string]activeEntry{},
+		leases:   map[string]string{},
 	}
 }
 
-func (m *Mem) CreateSession(_ context.Context, s Session, now time.Time, rateLimit time.Duration) error {
+func (m *Mem) CreateSession(_ context.Context, s Session, now time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if a, ok := m.active[s.User]; ok && a.expires.After(now) {
 		return ErrActive
-	}
-	if last, ok := m.lastStart[s.User]; ok && now.Sub(last) < rateLimit {
-		return ErrRateLimited
 	}
 	m.sessions[s.ID] = s
 	m.work[s.ID] = Work{
@@ -49,7 +44,6 @@ func (m *Mem) CreateSession(_ context.Context, s Session, now time.Time, rateLim
 		ExpiresAt: s.ExpiresAt, DiscordMessageID: s.DiscordMessageID,
 	}
 	m.active[s.User] = activeEntry{sid: s.ID, expires: s.ExpiresAt}
-	m.lastStart[s.User] = now
 	return nil
 }
 
@@ -141,9 +135,6 @@ func (m *Mem) Transition(_ context.Context, id string, from []Status, to Status,
 	m.sessions[id], m.work[id] = s, w
 	if to.Terminal() {
 		m.clearActive(s.User, id)
-		if u.RefundRateLimit {
-			delete(m.lastStart, s.User)
-		}
 	}
 	return nil
 }

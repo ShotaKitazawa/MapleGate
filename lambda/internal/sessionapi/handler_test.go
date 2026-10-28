@@ -53,11 +53,11 @@ func (f *flaky) GetSession(ctx context.Context, id string) (store.Session, error
 	return f.Mem.GetSession(ctx, id)
 }
 
-func (f *flaky) CreateSession(ctx context.Context, s store.Session, now time.Time, d time.Duration) error {
+func (f *flaky) CreateSession(ctx context.Context, s store.Session, now time.Time) error {
 	if f.down {
 		return errors.New("dynamodb unavailable")
 	}
-	return f.Mem.CreateSession(ctx, s, now, d)
+	return f.Mem.CreateSession(ctx, s, now)
 }
 
 var pubKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
@@ -75,7 +75,7 @@ func newEnv() *env {
 	n := 0
 	e.h = &Handler{
 		Cfg: config.Config{
-			PendingTTL: 15 * time.Minute, StartRateTime: 10 * time.Minute, StaleAfter: 2 * time.Minute, WGPort: 51820,
+			PendingTTL: 15 * time.Minute, StaleAfter: 2 * time.Minute, WGPort: 51820,
 			AllowedIPs: []string{"0.0.0.0/0", "::/0"}, Keepalive: 25,
 		},
 		Store: e.st, EC2: e.ec2, Discord: e.dc,
@@ -161,7 +161,7 @@ func TestCreateSessionLimits(t *testing.T) {
 	assert.Equal(t, "sid1", body(t, r)["session_id"], "a client that lost the first response can resume")
 
 	_ = e.st.ClearActive(context.Background(), "alice", "sid1")
-	assert.Equal(t, 429, e.do("POST", "/session", "alice", createBody()).StatusCode)
+	assert.Equal(t, 202, e.do("POST", "/session", "alice", createBody()).StatusCode, "a freed slot allows a new request at once")
 }
 
 func TestCreateSessionStartFailureIsNotFatal(t *testing.T) {
@@ -170,7 +170,7 @@ func TestCreateSessionStartFailureIsNotFatal(t *testing.T) {
 	assert.Equal(t, 202, e.do("POST", "/session", "alice", createBody()).StatusCode)
 }
 
-func TestCreateSessionDiscordFailureFreesSlotAndRateLimit(t *testing.T) {
+func TestCreateSessionDiscordFailureFreesSlot(t *testing.T) {
 	e := newEnv()
 	e.dc.err = errors.New("boom")
 	assert.Equal(t, 502, e.do("POST", "/session", "alice", createBody()).StatusCode)
@@ -179,7 +179,7 @@ func TestCreateSessionDiscordFailureFreesSlotAndRateLimit(t *testing.T) {
 	assert.Equal(t, store.StatusFailed, s.Status)
 
 	e.dc.err = nil
-	assert.Equal(t, 202, e.do("POST", "/session", "alice", createBody()).StatusCode, "our outage must not cost the user the rate limit window")
+	assert.Equal(t, 202, e.do("POST", "/session", "alice", createBody()).StatusCode, "our outage must not leave the slot taken")
 }
 
 func TestStoreOutageIs503(t *testing.T) {
@@ -194,7 +194,7 @@ func approve(t *testing.T, e *env) {
 	ctx := context.Background()
 	require.NoError(t, e.st.CreateSession(ctx, store.Session{
 		ID: "s1", User: "alice", PublicKey: pubKey, Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute),
-	}, e.now, 0))
+	}, e.now))
 	require.NoError(t, e.st.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusApproved,
 		store.Update{Address: "10.66.0.2", ExpiresAt: e.now.Add(4 * time.Hour), ApprovedAt: e.now}))
 }
@@ -274,7 +274,7 @@ func TestDeleteOnlyRecordsIntent(t *testing.T) {
 	assert.Equal(t, 200, e.do("DELETE", "/session/s1", "alice", "").StatusCode, "idempotent")
 }
 
-func TestDeletePendingRefundsRateLimit(t *testing.T) {
+func TestDeletePendingAllowsANewRequest(t *testing.T) {
 	e := newEnv()
 	assert.Equal(t, 202, e.do("POST", "/session", "alice", createBody()).StatusCode)
 	assert.Equal(t, 200, e.do("DELETE", "/session/sid1", "alice", "").StatusCode)

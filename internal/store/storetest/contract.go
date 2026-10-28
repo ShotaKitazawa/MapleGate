@@ -31,20 +31,19 @@ func pending(id, user string) store.Session {
 // Run executes the contract against fresh stores made by mk.
 func Run(t *testing.T, mk func(t *testing.T) Full) {
 	tests := map[string]func(*testing.T, Full){
-		"create writes META and WORK":         createWritesBoth,
-		"create limits":                       createLimits,
-		"transition conflicts":                transitionConflicts,
-		"approve extends the active slot":     approveExtendsActive,
-		"terminal transition frees the slot":  terminalFreesSlot,
-		"refund rate limit on pending delete": refundRateLimit,
-		"work mirror follows transitions":     workMirror,
-		"node reports":                        nodeReports,
-		"delete work needs removed_at":        deleteWorkNeedsRemoval,
-		"reapply clears removed_at":           reapplyClearsRemoval,
-		"node ownership":                      nodeOwnership,
-		"ip lease":                            ipLease,
-		"health round trip":                   healthRoundTrip,
-		"message bookkeeping":                 messageBookkeeping,
+		"create writes META and WORK":        createWritesBoth,
+		"create limits":                      createLimits,
+		"transition conflicts":               transitionConflicts,
+		"approve extends the active slot":    approveExtendsActive,
+		"terminal transition frees the slot": terminalFreesSlot,
+		"work mirror follows transitions":    workMirror,
+		"node reports":                       nodeReports,
+		"delete work needs removed_at":       deleteWorkNeedsRemoval,
+		"reapply clears removed_at":          reapplyClearsRemoval,
+		"node ownership":                     nodeOwnership,
+		"ip lease":                           ipLease,
+		"health round trip":                  healthRoundTrip,
+		"message bookkeeping":                messageBookkeeping,
 	}
 	for name, fn := range tests {
 		t.Run(name, func(t *testing.T) { fn(t, mk(t)) })
@@ -52,7 +51,7 @@ func Run(t *testing.T, mk func(t *testing.T) Full) {
 }
 
 func createWritesBoth(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 10*time.Minute))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 
 	got, err := s.GetSession(ctx, "s1")
 	require.NoError(t, err)
@@ -73,21 +72,20 @@ func createWritesBoth(t *testing.T, s Full) {
 }
 
 func createLimits(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 10*time.Minute))
-	assert.ErrorIs(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Minute), 10*time.Minute), store.ErrActive)
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
+	assert.ErrorIs(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Minute)), store.ErrActive)
 
 	require.NoError(t, s.ClearActive(ctx, "alice", "s1"))
-	assert.ErrorIs(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Minute), 10*time.Minute), store.ErrRateLimited)
-	assert.NoError(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(11*time.Minute), 10*time.Minute))
+	assert.NoError(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Minute)), "a freed slot allows a new request at once")
 
 	// nothing from a rejected attempt may leak
 	_, err := s.GetWork(ctx, "s3")
 	assert.ErrorIs(t, err, store.ErrNotFound)
-	assert.NoError(t, s.CreateSession(ctx, pending("s3", "bob"), t0, 10*time.Minute), "other users are independent")
+	assert.NoError(t, s.CreateSession(ctx, pending("s3", "bob"), t0), "other users are independent")
 }
 
 func transitionConflicts(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 0))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 
 	require.NoError(t, s.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusApproved, store.Update{Approver: "bob"}))
 	assert.ErrorIs(t, s.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusDenied, store.Update{}), store.ErrConflict)
@@ -99,13 +97,13 @@ func transitionConflicts(t *testing.T, s Full) {
 }
 
 func approveExtendsActive(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 0))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 	exp := t0.Add(4 * time.Hour)
 	require.NoError(t, s.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusApproved,
 		store.Update{Address: "10.66.0.2", ExpiresAt: exp, ApprovedAt: t0.Add(time.Minute)}))
 
 	// well past the pending deadline, the slot must still hold
-	assert.ErrorIs(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Hour), 0), store.ErrActive)
+	assert.ErrorIs(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Hour)), store.ErrActive)
 
 	w, _ := s.GetWork(ctx, "s1")
 	assert.Equal(t, exp, w.ExpiresAt)
@@ -113,23 +111,16 @@ func approveExtendsActive(t *testing.T, s Full) {
 }
 
 func terminalFreesSlot(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 0))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 	require.NoError(t, s.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusDenied, store.Update{CloseReason: "denied"}))
 
-	assert.NoError(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Second), 0))
+	assert.NoError(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Second)))
 	_, err := s.ActiveSessionID(ctx, "bob")
 	assert.ErrorIs(t, err, store.ErrNotFound)
 }
 
-func refundRateLimit(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 10*time.Minute))
-	require.NoError(t, s.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusClosed,
-		store.Update{RefundRateLimit: true}))
-	assert.NoError(t, s.CreateSession(ctx, pending("s2", "alice"), t0.Add(time.Minute), 10*time.Minute))
-}
-
 func workMirror(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 0))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 	require.NoError(t, s.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusApproved, store.Update{Address: "10.66.0.2", ExpiresAt: t0.Add(time.Hour)}))
 	require.NoError(t, s.Transition(ctx, "s1", []store.Status{store.StatusApproved}, store.StatusClosed, store.Update{CloseReason: "idle"}))
 
@@ -142,7 +133,7 @@ func workMirror(t *testing.T, s Full) {
 }
 
 func nodeReports(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 0))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 
 	require.NoError(t, s.ReportApplied(ctx, "s1", "boot1", t0.Add(time.Minute)))
 	require.NoError(t, s.ReportHandshake(ctx, "s1", t0.Add(2*time.Minute)))
@@ -156,7 +147,7 @@ func nodeReports(t *testing.T, s Full) {
 }
 
 func deleteWorkNeedsRemoval(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 0))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 	assert.ErrorIs(t, s.DeleteWork(ctx, "s1"), store.ErrConflict)
 
 	require.NoError(t, s.ReportRemoved(ctx, "s1", t0))
@@ -167,7 +158,7 @@ func deleteWorkNeedsRemoval(t *testing.T, s Full) {
 }
 
 func reapplyClearsRemoval(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 0))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 	require.NoError(t, s.ReportRemoved(ctx, "s1", t0))
 	require.NoError(t, s.ReportApplied(ctx, "s1", "boot2", t0.Add(time.Minute)))
 
@@ -214,7 +205,7 @@ func healthRoundTrip(t *testing.T, s Full) {
 }
 
 func messageBookkeeping(t *testing.T, s Full) {
-	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0, 0))
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
 	require.NoError(t, s.SetMessageID(ctx, "s1", "m1"))
 	require.NoError(t, s.SetMsgSynced(ctx, "s1", true))
 

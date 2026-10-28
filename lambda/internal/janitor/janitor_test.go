@@ -69,7 +69,7 @@ func (e *env) run(t *testing.T) { require.NoError(t, e.j.Run(ctx)) }
 func (e *env) pending(t *testing.T, sid, user string) {
 	require.NoError(t, e.st.CreateSession(ctx, store.Session{
 		ID: sid, User: user, PublicKey: "PUB", Status: store.StatusPending, CreatedAt: e.now, ExpiresAt: e.now.Add(15 * time.Minute),
-	}, e.now, 0))
+	}, e.now))
 	require.NoError(t, e.st.SetMessageID(ctx, sid, "m-"+sid))
 }
 
@@ -291,7 +291,7 @@ func TestMessageGoneIsNotRetriedForever(t *testing.T) {
 func TestOrphanWorkIsReclaimed(t *testing.T) {
 	e := newEnv()
 	e.ec2.state = ec2ctl.StateStopped
-	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "alice", Status: store.StatusPending, ExpiresAt: e.now.Add(time.Hour)}, e.now, 0))
+	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "alice", Status: store.StatusPending, ExpiresAt: e.now.Add(time.Hour)}, e.now))
 	e.st.DropSession("s1")
 
 	e.run(t)

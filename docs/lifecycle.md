@@ -21,7 +21,7 @@ DynamoDB is the single source of truth. Every component converges on it; none ho
 | `WORK` / `<sid>` | intent: Lambda, observation: node | intent: phase (mirror of META.status), public_key, address, expires_at. observation: applied_at, applied_boot_id, last_handshake_at, removed_at, error |
 | `NODE` / `vpn` | node | instance_id, boot_id, public_ip, last_seen, state, mode |
 | `HEALTH` / `janitor` | janitor | last_run, start_failures, cooldown_until |
-| `USER#<u>` / `ACTIVE`, `RATELIMIT`; `IP#<a>` / `LEASE` | Lambda | as before |
+| `USER#<u>` / `ACTIVE`; `IP#<a>` / `LEASE` | Lambda | as before |
 
 A META transition and its WORK mirror are always one transaction. The janitor deletes a WORK item after `removed_at`.
 
@@ -32,11 +32,11 @@ The API status is derived: `approved` with `WORK.applied_boot_id == NODE.boot_id
 - pending -> approved (approval; IP leased; expires_at = now + TTL)
 - pending -> denied | expired (janitor, approval deadline) | failed
 - approved -> closed (DELETE, or janitor on handshake idleness) | expired (janitor) | failed (janitor: not applied within 5 min, or node unhealthy)
-- A terminal transition also frees `USER#ACTIVE`; it never frees the IP lease (I6). Deleting one's own pending session also frees `RATELIMIT`.
+- A terminal transition also frees `USER#ACTIVE`; it never frees the IP lease (I6).
 
 ## Components
 
-- session-api: POST creates META + WORK + ACTIVE + RATELIMIT in one transaction; 409 carries the existing session_id; StartInstances is best effort. GET and DELETE touch DynamoDB only.
+- session-api: POST creates META + WORK + ACTIVE in one transaction; 409 carries the existing session_id; StartInstances is best effort. GET and DELETE touch DynamoDB only.
 - discord-interactions: immediate ack, then async self-invoke. Approval = lease IP, conditional transition (release the lease if it lost), StartInstances. Signed timestamps older than 5 min are rejected.
 - janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when live sessions exist and it is stopped (breaker-guarded); release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; write HEALTH.
 - vpn-agent (node, tick 10 s, heartbeat 30 s): converge peers on WORK (validated, full diff), report observations, decide to stop. MAX_UPTIME is a separate timer.
@@ -100,7 +100,7 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 - C17 regional outage: out of scope; MAX_UPTIME and budget alarms bound exposure.
 
 ### D. Discord
-- D1 post fails: session failed, 502, active slot and rate limit released.
+- D1 post fails: session failed, 502, active slot released.
 - D2 update fails: janitor retries; 404 means give up; stop after 1 h.
 - D3 bot token revoked: everything fails; alarm.
 - D4 bad signature or replay: verification and timestamp window; per-sid idempotency.
@@ -136,3 +136,5 @@ The instance is long-lived and `ignore_changes` covers `ami`, `user_data` and `a
 - A persistent `InsufficientInstanceCapacity` in the single AZ can only be fixed by a replacement.
 
 Revisit when the server key moves off the instance (an SSM SecureString, for example). Replacement then costs only the live sessions, and a procedure that replaces the node while no session is live, with a fresh AMI, lets `ami` come out of `ignore_changes`. `associate_public_ip_address` is there because a stopped instance reports no public IP and the provider reads that as drift; drop it once the provider or the layout no longer does.
+
+There is no request rate limit. A user holds at most one live session (`ACTIVE`), and the node cannot start and stop faster than its own timers allow: it stays up for at least the boot grace plus the idle stop before powering off. A limit would add nothing to what the Identity Center authorisation and the Discord approval already decide, and it delayed legitimate reconnects.

@@ -71,9 +71,7 @@ func (h *Handler) create(ctx context.Context, user string, req events.LambdaFunc
 		ID: h.NewID(), User: user, PublicKey: in.PublicKey, Status: store.StatusPending,
 		CreatedAt: now, ExpiresAt: now.Add(h.Cfg.PendingTTL),
 	}
-	switch err := h.Store.CreateSession(ctx, s, now, h.Cfg.StartRateTime); {
-	case errors.Is(err, store.ErrRateLimited):
-		return jsonResp(http.StatusTooManyRequests, map[string]string{"error": "rate limited"})
+	switch err := h.Store.CreateSession(ctx, s, now); {
 	case errors.Is(err, store.ErrActive):
 		out := map[string]string{"error": "session already active"}
 		if sid, err := h.Store.ActiveSessionID(ctx, user); err == nil {
@@ -92,7 +90,7 @@ func (h *Handler) create(ctx context.Context, user string, req events.LambdaFunc
 	if err := h.postApproval(ctx, s); err != nil {
 		slog.Error("post approval", "session", s.ID, "err", err)
 		_ = h.Store.Transition(ctx, s.ID, []store.Status{store.StatusPending}, store.StatusFailed,
-			store.Update{Error: "discord unavailable", CloseReason: "error", RefundRateLimit: true})
+			store.Update{Error: "discord unavailable", CloseReason: "error"})
 		return jsonResp(http.StatusBadGateway, map[string]string{"error": "approval request failed"})
 	}
 	return jsonResp(http.StatusAccepted, map[string]string{"session_id": s.ID, "status": string(store.StatusPending)})
@@ -196,7 +194,7 @@ func (h *Handler) del(ctx context.Context, user, id string) events.LambdaFunctio
 		return jsonResp(http.StatusOK, map[string]any{"status": s.Status})
 	}
 	err = h.Store.Transition(ctx, s.ID, []store.Status{s.Status}, store.StatusClosed,
-		store.Update{CloseReason: "user", RefundRateLimit: s.Status == store.StatusPending})
+		store.Update{CloseReason: "user"})
 	if errors.Is(err, store.ErrConflict) {
 		return jsonResp(http.StatusConflict, map[string]string{"error": "state changed, retry"})
 	}

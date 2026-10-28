@@ -311,7 +311,7 @@ func newCluster(t *testing.T, opts nodeOpts) *cluster {
 	c.st = &store.Dynamo{Client: ddb, Table: table}
 	cfg := config.Config{
 		WGPort: 51820, WGSubnet: "10.66.0", SessionTTL: 4 * time.Hour, PendingTTL: 15 * time.Minute,
-		StartRateTime: 0, StaleAfter: 2 * time.Minute, AllowedIPs: []string{"0.0.0.0/0"}, Keepalive: 25,
+		StaleAfter: 2 * time.Minute, AllowedIPs: []string{"0.0.0.0/0"}, Keepalive: 25,
 	}
 	fd := fakeDiscord{}
 	id := 0

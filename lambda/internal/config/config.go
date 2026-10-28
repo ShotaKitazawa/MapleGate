@@ -16,7 +16,6 @@ type Config struct {
 	WGSubnet      string // e.g. "10.66.0"
 	SessionTTL    time.Duration
 	PendingTTL    time.Duration
-	StartRateTime time.Duration
 	ProvisionWait time.Duration
 	StaleAfter    time.Duration
 	HandshakeIdle time.Duration
@@ -36,7 +35,6 @@ func Load() (Config, error) {
 		WGSubnet:      envOr("WG_SUBNET_PREFIX", "10.66.0"),
 		SessionTTL:    envDur("SESSION_TTL", 4*time.Hour),
 		PendingTTL:    envDur("PENDING_TTL", 15*time.Minute),
-		StartRateTime: envDur("START_RATE_LIMIT", 10*time.Minute),
 		ProvisionWait: envDur("PROVISION_TIMEOUT", 5*time.Minute),
 		StaleAfter:    envDur("NODE_STALE_AFTER", 2*time.Minute),
 		HandshakeIdle: envDur("HANDSHAKE_IDLE", 10*time.Minute),

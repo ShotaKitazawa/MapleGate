@@ -172,7 +172,7 @@ func newWorld(t *testing.T, seed int64) *world {
 	w.nodeS = &nodeStore{Mem: w.st}
 	cfg := config.Config{
 		WGPort: 51820, WGSubnet: "10.66.0", SessionTTL: 4 * time.Hour, PendingTTL: 15 * time.Minute,
-		StartRateTime: 10 * time.Minute, StaleAfter: 2 * time.Minute, AllowedIPs: []string{"0.0.0.0/0"}, Keepalive: 25,
+		StaleAfter: 2 * time.Minute, AllowedIPs: []string{"0.0.0.0/0"}, Keepalive: 25,
 	}
 	id := 0
 	w.api = &sessionapi.Handler{

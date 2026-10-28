@@ -87,7 +87,7 @@ func (e *env) seedPending(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, e.st.CreateSession(ctx, store.Session{
 		ID: "s1", User: "alice", PublicKey: "PUB", Status: store.StatusPending, ExpiresAt: e.now.Add(10 * time.Minute),
-	}, e.now, 0))
+	}, e.now))
 	require.NoError(t, e.st.SetMessageID(ctx, "s1", "m1"))
 }
 
@@ -209,7 +209,7 @@ func TestDeny(t *testing.T) {
 	assert.Equal(t, store.StatusDenied, s.Status)
 	require.Len(t, e.dc.updates, 1)
 	assert.Contains(t, e.dc.updates[0].Content, "denied")
-	assert.NoError(t, e.st.CreateSession(context.Background(), store.Session{ID: "s2", User: "alice", ExpiresAt: e.now.Add(time.Hour)}, e.now, 0), "active slot must be freed")
+	assert.NoError(t, e.st.CreateSession(context.Background(), store.Session{ID: "s2", User: "alice", ExpiresAt: e.now.Add(time.Hour)}, e.now), "active slot must be freed")
 }
 
 func TestApproveAfterPendingDeadline(t *testing.T) {

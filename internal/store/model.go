@@ -29,10 +29,9 @@ func (s Status) Terminal() bool {
 func (s Status) Live() bool { return s == StatusPending || s == StatusApproved }
 
 var (
-	ErrNotFound    = errors.New("not found")
-	ErrConflict    = errors.New("conflict")
-	ErrRateLimited = errors.New("rate limited")
-	ErrActive      = errors.New("user already has an active session")
+	ErrNotFound = errors.New("not found")
+	ErrConflict = errors.New("conflict")
+	ErrActive   = errors.New("user already has an active session")
 )
 
 type Session struct {
@@ -90,19 +89,18 @@ type Health struct {
 // Update lists the fields Transition may change; zero values are left untouched.
 // A non-zero ExpiresAt also extends the user's active-session slot.
 type Update struct {
-	Address         string
-	Approver        string
-	Error           string
-	CloseReason     string
-	ExpiresAt       time.Time
-	ApprovedAt      time.Time
-	RefundRateLimit bool
+	Address     string
+	Approver    string
+	Error       string
+	CloseReason string
+	ExpiresAt   time.Time
+	ApprovedAt  time.Time
 }
 
 // Store is the Lambda side. Terminal transitions free the user's active slot but never the IP lease.
 type Store interface {
-	// CreateSession writes META, WORK, the active slot and the rate limit atomically.
-	CreateSession(ctx context.Context, s Session, now time.Time, rateLimit time.Duration) error
+	// CreateSession writes META, WORK and the active slot atomically.
+	CreateSession(ctx context.Context, s Session, now time.Time) error
 	GetSession(ctx context.Context, id string) (Session, error)
 	ActiveSessionID(ctx context.Context, user string) (string, error)
 	SetMessageID(ctx context.Context, id, messageID string) error
