@@ -1,0 +1,92 @@
+# MapleGate (game-vpn)
+
+On-demand WireGuard VPN in AWS us-west-2 for the game.
+Access is gated by IAM Identity Center and a Discord approval button.
+
+How the node, the Lambdas and DynamoDB stay consistent (and what happens when each of them breaks) is specified in [docs/lifecycle.md](docs/lifecycle.md).
+
+## Architecture
+
+DynamoDB is the single source of truth; nothing is ever pushed to the node.
+
+- `session` Lambda (Function URL): creates, reads and closes sessions. It only writes intent to DynamoDB.
+- `discord` Lambda (Function URL): verifies Discord's signature and records approve / deny.
+- `janitor` Lambda (EventBridge Scheduler, every minute): enforces deadlines, starts the node when sessions are waiting, frees IPs, and keeps Discord messages in sync.
+- `vpn-agent` (on the EC2 node): converges WireGuard peers on the work queue in DynamoDB, reports what it applied, and powers the node off when nothing is live.
+- Node scripts and the agent binary ship through the artifacts bucket and are fetched on every boot, so changing them never replaces the instance (which would regenerate the server key).
+
+## Prerequisites (Phase 0, manual)
+
+### AWS
+
+1. Use a Paid-plan account. Free-plan accounts may not be able to enable Organizations / Identity Center; upgrade first if they cannot.
+2. Enable AWS Organizations, then IAM Identity Center (organization instance).
+3. Create the state bucket once with local state:
+   ```
+   terraform -chdir=infra/bootstrap init && terraform -chdir=infra/bootstrap apply
+   ```
+4. Build the binaries Terraform uploads and zips, then apply:
+   ```
+   mise run build
+   terraform -chdir=infra/main init && terraform -chdir=infra/main apply
+   ```
+   Reserved concurrency (session 2 / discord 3 / janitor 1) fails on accounts whose Lambda concurrency limit is 10, because reserving any leaves fewer than 10 unreserved;
+   pass `-var session_reserved_concurrency=-1 -var discord_reserved_concurrency=-1 -var janitor_reserved_concurrency=-1` there. An unreserved janitor can overlap itself, which its conditional transitions tolerate.
+5. Updating the agent or node scripts: `mise run build`, then `terraform apply`. The node picks them up on its next boot; a new agent binary is promoted only after it reaches DynamoDB, otherwise the previous one is restored.
+   Replacing the instance itself needs an explicit `terraform apply -replace=aws_instance.vpn` and ends live sessions.
+
+### Discord
+
+1. Create an application and a bot in the Developer Portal; invite the bot to your server with permission to send/edit messages in the approval channel.
+2. Create the approval channel. Enable Developer Mode and copy the channel ID.
+3. Store the values (Terraform creates placeholders and ignores later value changes):
+   ```
+   aws ssm put-parameter --region us-west-2 --overwrite --type SecureString --name /gamevpn/discord/bot_token --value '<bot token>'
+   aws ssm put-parameter --region us-west-2 --overwrite --type String --name /gamevpn/discord/app_public_key --value '<application public key (hex)>'
+   aws ssm put-parameter --region us-west-2 --overwrite --type String --name /gamevpn/discord/channel_id --value '<channel id>'
+   aws ssm put-parameter --region us-west-2 --overwrite --type SecureString --name /gamevpn/session_api_token --value '<random string>'
+   ```
+   Lambdas cache these for 5 minutes, so a rotated value takes effect without a redeploy.
+4. Set the `discord_interactions_url` Terraform output as the Interactions Endpoint URL in the Developer Portal.
+   Discord sends a signed PING on save, so the public key parameter must be set first.
+
+## Phase 2 manual check
+
+```
+curl -X POST "$SESSION_API_URL/session" -H "x-gamevpn-token: $TOKEN" -H "x-gamevpn-user: me" \
+  -d "{\"public_key\":\"$(wg genkey | wg pubkey)\"}"
+```
+Press Approve in Discord, then poll `GET /session/<id>`: it reports `provisioning` until the node has booted and applied the peer, then `active` with the WireGuard config.
+
+Clients must treat only `denied`, `failed`, `closed` and `expired` as the end of a session. `provisioning` after `active`, or an HTTP 503, means the node or the table is briefly unreachable and the tunnel should stay up.
+
+The node has no SSH and no inbound port besides WireGuard. For the first boots, use Session Manager (`aws ssm start-session --target <instance id>`) or `aws ec2 get-console-output` for the cloud-init log; once the node is proven, drop the permission with `-var node_session_manager=false`.
+
+Live checks worth doing once (they are not covered by tests):
+
+- cut the node's egress (remove the security group egress rule) and confirm peers stay up, new approvals fail after 5 minutes, and everything recovers afterwards;
+- narrow the node's DynamoDB policy and confirm the agent stops reporting while the janitor stops restarting a node that never comes up;
+- stop the agent and confirm the node still powers off by itself (absolute 5 hour cap).
+
+## Development
+
+`mise run pre-merge` formats and runs every check; `mise run build` builds the arm64 Lambda and agent binaries.
+
+`internal/store` has one contract suite run against the in-memory store always and against DynamoDB when `DYNAMODB_ENDPOINT` points at DynamoDB Local; `mise run test-dynamodb` starts DynamoDB Local with Apple [`container`](https://github.com/apple/container) and runs it (CI uses a service container instead).
+`lambda/internal/scenario` runs the handlers, the janitor and the agent together against random operation sequences (`go test -short` runs fewer).
+
+`mise run test-integration` runs the integration tests locally with Apple [`container`](https://github.com/apple/container) on an Apple-silicon Mac (`container system start` first). It is not part of `mise run ci` because CI runners have no such VMs, and it is not an end-to-end test: the live checks above are.
+
+| Production | In the integration tests |
+|---|---|
+| Lambda behind Function URLs | handlers called in-process (stand-in) |
+| async self-invoke | goroutine calling `HandleAsync` (stand-in) |
+| Discord signatures and API | self-signed requests, fake client (stand-in) |
+| EventBridge Scheduler, every minute | janitor ticked every 2 seconds (stand-in) |
+| DynamoDB | DynamoDB Local (compatible implementation) |
+| EC2 start/stop, IMDS, IAM | container start/stop, fake IMDS, static credentials (stand-in) |
+| kernel WireGuard | `wireguard-go` in userspace; the container kernel has no module, the agent's wgctrl calls are the same |
+| AL2023, systemd, cloud-init, `setup.sh` | alpine and a small entrypoint (stand-in) |
+| SSM Parameter Store, Identity Center, the client | not covered |
+
+The real `vpn-agent`, the store, the handlers and the janitor are the real code. Covered: approve to active to delete with a ping through the tunnel, deny, idle power-off and restart, hard node stop, and DynamoDB unreachable from the node (blind mode, then catching up).
