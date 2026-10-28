@@ -44,19 +44,27 @@ DynamoDB is the single source of truth; nothing is ever pushed to the node.
    aws ssm put-parameter --region us-west-2 --overwrite --type SecureString --name /gamevpn/discord/bot_token --value '<bot token>'
    aws ssm put-parameter --region us-west-2 --overwrite --type String --name /gamevpn/discord/app_public_key --value '<application public key (hex)>'
    aws ssm put-parameter --region us-west-2 --overwrite --type String --name /gamevpn/discord/channel_id --value '<channel id>'
-   aws ssm put-parameter --region us-west-2 --overwrite --type SecureString --name /gamevpn/session_api_token --value '<random string>'
    ```
    Lambdas cache these for 5 minutes, so a rotated value takes effect without a redeploy.
 4. Set the `discord_interactions_url` Terraform output as the Interactions Endpoint URL in the Developer Portal.
    Discord sends a signed PING on save, so the public key parameter must be set first.
 
-## Phase 2 manual check
+## Who can use it
+
+The session API is an `AWS_IAM` Function URL: a request without a valid SigV4 signature, or from a principal that may not call it, is rejected with 403 before the Lambda runs. The caller's identity is the Identity Center user name taken from the signed role session (`AWSReservedSSO_*/<user name>`); other roles are refused because they choose their own session name.
+
+Terraform creates the `players` group and the `gamevpn-player` permission set (it can only call the session API) and assigns the group to the account. People are added by hand, which Terraform does not do for you: in the IAM Identity Center console create the user (this sends the invitation e-mail), add it to `players`, and have them register an MFA device at first sign-in. Check members with `aws identitystore list-group-memberships --identity-store-id <id> --group-id <group id>`.
+
+Function URL creation makes Lambda add its own public-access statements to the function policy. After switching a URL to `AWS_IAM`, remove the stale ones: `aws lambda remove-permission --function-name gamevpn-session --statement-id FunctionURLAllowPublicAccess` and the same for `FunctionURLAllowInvokeAction`.
+
+## Phase 3 manual check
 
 ```
-curl -X POST "$SESSION_API_URL/session" -H "x-gamevpn-token: $TOKEN" -H "x-gamevpn-user: me" \
-  -d "{\"public_key\":\"$(wg genkey | wg pubkey)\"}"
+aws sso login --profile <your profile>
+export AWS_PROFILE=<your profile> GAMEVPN_API_URL=<session_api_url output>
+go run ./client/cmd/gamevpn-cli up > wg0.conf
 ```
-Press Approve in Discord, then poll `GET /session/<id>`: it reports `provisioning` until the node has booted and applied the peer, then `active` with the WireGuard config.
+`up` creates a session and waits; press Approve in Discord. It then prints a WireGuard config to stdout (the private key stays on your machine). `get <id>` and `delete <id>` read and end a session. An unsigned `curl` to the URL must return 403.
 
 Clients must treat only `denied`, `failed`, `closed` and `expired` as the end of a session. `provisioning` after `active`, or an HTTP 503, means the node or the table is briefly unreachable and the tunnel should stay up.
 

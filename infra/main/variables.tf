@@ -63,3 +63,8 @@ variable "node_session_manager" {
   type    = bool
   default = true
 }
+
+variable "player_session_duration" {
+  type    = string
+  default = "PT1H"
+}

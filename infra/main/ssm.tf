@@ -42,14 +42,3 @@ resource "aws_ssm_parameter" "server_public_key" {
     ignore_changes = [value]
   }
 }
-
-# Phase 2 only: replaced by AWS_IAM on the session Function URL in Phase 3
-resource "aws_ssm_parameter" "session_api_token" {
-  name  = "${local.param_prefix}/session_api_token"
-  type  = "SecureString"
-  value = "placeholder"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}

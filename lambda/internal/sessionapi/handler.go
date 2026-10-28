@@ -2,7 +2,6 @@ package sessionapi
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -18,23 +17,6 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ec2ctl"
 	"github.com/aws/aws-lambda-go/events"
 )
-
-type Authenticator interface {
-	// Authenticate returns the caller's user name.
-	Authenticate(req events.LambdaFunctionURLRequest) (string, bool)
-}
-
-// FixedHeaderAuth is the Phase 2 stand-in until the Function URL moves to AWS_IAM.
-type FixedHeaderAuth struct{ Token string }
-
-func (a FixedHeaderAuth) Authenticate(req events.LambdaFunctionURLRequest) (string, bool) {
-	got := req.Headers["x-gamevpn-token"]
-	user := req.Headers["x-gamevpn-user"]
-	if a.Token == "" || user == "" || subtle.ConstantTimeCompare([]byte(got), []byte(a.Token)) != 1 {
-		return "", false
-	}
-	return user, true
-}
 
 type Handler struct {
 	Cfg       config.Config

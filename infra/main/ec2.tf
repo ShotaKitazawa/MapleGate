@@ -141,8 +141,9 @@ resource "aws_instance" "vpn" {
   })
 
   # A replacement regenerates the server key and kills live sessions, so node changes ship through S3 instead.
+  # A stopped instance reports no public IP, which the provider would otherwise read as drift and replace the node.
   lifecycle {
-    ignore_changes = [ami, user_data]
+    ignore_changes = [ami, user_data, associate_public_ip_address]
   }
 
   depends_on = [aws_s3_object.node, aws_s3_object.agent]

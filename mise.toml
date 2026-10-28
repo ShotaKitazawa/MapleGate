@@ -7,7 +7,7 @@ shellcheck = "latest"
 
 [tasks.format]
 run = """
-  goimports -w lambda internal node &&
+  goimports -w client lambda internal node &&
   terraform fmt -recursive infra
 """
 
@@ -32,7 +32,7 @@ run = "node scripts/check_deps_age_backend.ts"
 
 [tasks.ci-fmt]
 run = """
-  test -z "$(goimports -l lambda internal node)" &&
+  test -z "$(goimports -l client lambda internal node)" &&
   terraform fmt -check -recursive infra
 """
 
@@ -53,7 +53,8 @@ run = """
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/session &&
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/discord &&
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/janitor &&
-  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./node/agent/cmd/vpn-agent
+  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./node/agent/cmd/vpn-agent &&
+  go build -o /dev/null ./client/cmd/gamevpn-cli
 """
 
 [tasks.test-dynamodb]
@@ -73,6 +74,7 @@ run = "go test -tags integration -count=1 -timeout 15m ./lambda/integration/..."
 [tasks.ci-terraform]
 run = """
   for d in infra/bootstrap infra/main; do
+    export TF_DATA_DIR=$d/.terraform-validate
     terraform -chdir=$d init -backend=false &&
     terraform -chdir=$d validate || exit 1
   done

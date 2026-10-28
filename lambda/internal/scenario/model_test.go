@@ -176,7 +176,7 @@ func newWorld(t *testing.T, seed int64) *world {
 	}
 	id := 0
 	w.api = &sessionapi.Handler{
-		Cfg: cfg, Store: w.st, EC2: fakeEC2{w}, Discord: fakeDiscord{w}, Auth: sessionapi.FixedHeaderAuth{Token: "t"},
+		Cfg: cfg, Store: w.st, EC2: fakeEC2{w}, Discord: fakeDiscord{w}, Auth: sessionapi.IAMAuth{},
 		ChannelID:       func(context.Context) (string, error) { return "ch", nil },
 		ServerPublicKey: func(context.Context) (string, error) { return "srv", nil },
 		Now:             func() time.Time { return w.now },
@@ -270,7 +270,8 @@ func (w *world) advance(d time.Duration) {
 }
 
 func (w *world) req(method, path, user, body string) events.LambdaFunctionURLResponse {
-	r := events.LambdaFunctionURLRequest{Headers: map[string]string{"x-gamevpn-token": "t", "x-gamevpn-user": user}, Body: body}
+	r := events.LambdaFunctionURLRequest{Body: body}
+	r.RequestContext.Authorizer = sessionapi.SSOCaller(user)
 	r.RequestContext.HTTP.Method, r.RequestContext.HTTP.Path = method, path
 	return w.api.Handle(ctx, r)
 }

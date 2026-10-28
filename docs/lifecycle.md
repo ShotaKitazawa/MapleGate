@@ -122,3 +122,17 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 - F4 IAM mistakes: seen as A3; covered by the live checklist.
 - F5 runaway cost: MAX_UPTIME, breaker, budgets.
 - F6 secret leakage: never log keys, tokens or bodies.
+
+## Who may do what to the instance
+
+Terraform creates and deletes the instance. The Lambdas may only start it (`ec2:StartInstances` on this one instance) and describe it. Only the node stops itself, through the agent or the 5 hour cap: it can re-check DynamoDB just before powering off, and it can still stop when DynamoDB is unreachable.
+
+## Known compromises
+
+The instance is long-lived and `ignore_changes` covers `ami`, `user_data` and `associate_public_ip_address`. A replacement regenerates the server key, which lives only on the instance, and drops every live session. The costs:
+
+- The AMI never updates, so OS and kernel patches stop.
+- `ignore_changes` also hides unintended changes to those attributes.
+- A persistent `InsufficientInstanceCapacity` in the single AZ can only be fixed by a replacement.
+
+Revisit when the server key moves off the instance (an SSM SecureString, for example). Replacement then costs only the live sessions, and a procedure that replaces the node while no session is live, with a fresh AMI, lets `ami` come out of `ignore_changes`. `associate_public_ip_address` is there because a stopped instance reports no public IP and the provider reads that as drift; drop it once the provider or the layout no longer does.

@@ -39,7 +39,7 @@ func main() {
 		Store:   &store.Dynamo{Client: dynamodb.NewFromConfig(awsCfg), Table: cfg.TableName},
 		EC2:     &ec2ctl.AWS{EC2: ec2.NewFromConfig(awsCfg), InstanceID: cfg.InstanceID},
 		Discord: discord.NewREST(func(ctx context.Context) (string, error) { return params.Get(ctx, "discord/bot_token") }, params.Invalidate),
-		Auth:    lazyAuth{params},
+		Auth:    sessionapi.IAMAuth{},
 		Now:     time.Now,
 		NewID:   func() string { return ulid.Make().String() },
 		ChannelID: func(ctx context.Context) (string, error) {

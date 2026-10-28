@@ -79,7 +79,7 @@ func newEnv() *env {
 			AllowedIPs: []string{"0.0.0.0/0", "::/0"}, Keepalive: 25,
 		},
 		Store: e.st, EC2: e.ec2, Discord: e.dc,
-		Auth:            FixedHeaderAuth{Token: "secret"},
+		Auth:            IAMAuth{},
 		ChannelID:       func(context.Context) (string, error) { return "ch", nil },
 		ServerPublicKey: func(context.Context) (string, error) { return "SERVERKEY", nil },
 		Now:             func() time.Time { return e.now },
@@ -89,10 +89,8 @@ func newEnv() *env {
 }
 
 func req(method, path, user, body string) events.LambdaFunctionURLRequest {
-	r := events.LambdaFunctionURLRequest{
-		Headers: map[string]string{"x-gamevpn-token": "secret", "x-gamevpn-user": user},
-		Body:    body,
-	}
+	r := events.LambdaFunctionURLRequest{Body: body}
+	r.RequestContext.Authorizer = SSOCaller(user)
 	r.RequestContext.HTTP.Method = method
 	r.RequestContext.HTTP.Path = path
 	return r
@@ -112,9 +110,25 @@ func createBody() string { return `{"public_key":"` + pubKey + `"}` }
 
 func TestAuthRequired(t *testing.T) {
 	e := newEnv()
+	for name, arn := range map[string]string{
+		"an IAM user":                     "arn:aws:iam::123456789012:user/alice",
+		"a role that is not SSO":          "arn:aws:sts::123456789012:assumed-role/ci/alice",
+		"an SSO role without a user name": "arn:aws:sts::123456789012:assumed-role/AWSReservedSSO_Player_0123456789abcdef/",
+		"nothing":                         "",
+	} {
+		r := req("POST", "/session", "alice", "{}")
+		r.RequestContext.Authorizer.IAM.UserARN = arn
+		assert.Equal(t, 403, e.h.Handle(context.Background(), r).StatusCode, name)
+	}
 	r := req("POST", "/session", "alice", "{}")
-	r.Headers["x-gamevpn-token"] = "wrong"
-	assert.Equal(t, 403, e.h.Handle(context.Background(), r).StatusCode)
+	r.RequestContext.Authorizer = nil
+	assert.Equal(t, 403, e.h.Handle(context.Background(), r).StatusCode, "an unsigned request")
+}
+
+func TestUserIsTheIdentityCenterUserName(t *testing.T) {
+	user, ok := IAMAuth{}.Authenticate(req("GET", "/session", "alice@example.com", ""))
+	assert.True(t, ok)
+	assert.Equal(t, "alice@example.com", user)
 }
 
 func TestCreateSession(t *testing.T) {

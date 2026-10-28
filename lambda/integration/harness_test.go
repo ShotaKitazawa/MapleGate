@@ -316,7 +316,7 @@ func newCluster(t *testing.T, opts nodeOpts) *cluster {
 	fd := fakeDiscord{}
 	id := 0
 	c.api = &sessionapi.Handler{
-		Cfg: cfg, Store: c.st, EC2: c.ec2, Discord: fd, Auth: sessionapi.FixedHeaderAuth{Token: "t"},
+		Cfg: cfg, Store: c.st, EC2: c.ec2, Discord: fd, Auth: sessionapi.IAMAuth{},
 		ChannelID:       func(context.Context) (string, error) { return "ch", nil },
 		ServerPublicKey: func(context.Context) (string, error) { return c.serverPub, nil },
 		Now:             time.Now,
@@ -406,7 +406,8 @@ type client struct {
 }
 
 func (c *cluster) req(method, path, user, body string) events.LambdaFunctionURLResponse {
-	r := events.LambdaFunctionURLRequest{Headers: map[string]string{"x-gamevpn-token": "t", "x-gamevpn-user": user}, Body: body}
+	r := events.LambdaFunctionURLRequest{Body: body}
+	r.RequestContext.Authorizer = sessionapi.SSOCaller(user)
 	r.RequestContext.HTTP.Method, r.RequestContext.HTTP.Path = method, path
 	return c.api.Handle(context.Background(), r)
 }

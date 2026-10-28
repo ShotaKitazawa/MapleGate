@@ -136,7 +136,7 @@ resource "aws_lambda_function_event_invoke_config" "discord" {
 
 resource "aws_lambda_function_url" "session" {
   function_name      = aws_lambda_function.fn["session"].function_name
-  authorization_type = "NONE"
+  authorization_type = "AWS_IAM"
 }
 
 resource "aws_lambda_function_url" "discord" {
@@ -146,7 +146,7 @@ resource "aws_lambda_function_url" "discord" {
 
 # A NONE URL needs both permissions since the Oct 2025 Function URL change; Lambda adds same-named statements itself, so ids here differ to avoid a 409
 resource "aws_lambda_permission" "url" {
-  for_each               = toset(["session", "discord"])
+  for_each               = toset(["discord"])
   statement_id           = "TerraformFunctionUrlPublic"
   action                 = "lambda:InvokeFunctionUrl"
   function_name          = aws_lambda_function.fn[each.key].function_name
@@ -155,7 +155,7 @@ resource "aws_lambda_permission" "url" {
 }
 
 resource "aws_lambda_permission" "url_invoke" {
-  for_each                 = toset(["session", "discord"])
+  for_each                 = toset(["discord"])
   statement_id             = "TerraformFunctionUrlInvokePublic"
   action                   = "lambda:InvokeFunction"
   function_name            = aws_lambda_function.fn[each.key].function_name
