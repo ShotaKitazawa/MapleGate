@@ -39,15 +39,31 @@ func TestSessionLifecycleOverRealWireGuard(t *testing.T) {
 	require.Error(t, c.ping(cl, st), "a closed session's key must stop working")
 }
 
-func TestDeniedRequestAppliesNothingAndTheNodeIdlesOut(t *testing.T) {
-	c := newCluster(t, nodeOpts{bootGrace: "5s", idleStop: "10s"})
+func TestARequestNobodyApprovesNeverStartsTheNode(t *testing.T) {
+	c := newCluster(t, nodeOpts{})
 
 	cl := c.create("alice")
-	c.eventually(boot, "the node to warm up while approval is pending", c.running)
+	time.Sleep(10 * time.Second)
+	require.False(t, c.running(), "waiting for approval is no reason to boot the node")
+
 	c.press("deny", cl.sid)
 	c.waitStatus("alice", cl.sid, "denied", 10*time.Second)
+	time.Sleep(10 * time.Second)
+	require.False(t, c.running(), "a refusal costs no start either")
 	require.Empty(t, c.nodePeers())
-	c.eventually(90*time.Second, "the node with nothing live to power off", func() bool { return !c.running() })
+}
+
+func TestApprovalIsWhatStartsTheNode(t *testing.T) {
+	c := newCluster(t, nodeOpts{})
+
+	cl := c.create("alice")
+	time.Sleep(6 * time.Second)
+	require.False(t, c.running())
+
+	c.press("approve", cl.sid)
+	c.eventually(30*time.Second, "the janitor to start the node for the approved session", c.running)
+	st := c.waitStatus("alice", cl.sid, "active", boot)
+	require.NoError(t, c.ping(cl, st), c.nodeLog())
 }
 
 func TestIdleNodePowersItselfOffAndComesBack(t *testing.T) {

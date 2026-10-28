@@ -12,14 +12,12 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/internal/store"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/config"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/discord"
-	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ec2ctl"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/interactions"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	lambdasvc "github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -57,7 +55,6 @@ func main() {
 	h := &interactions.Handler{
 		Cfg:     cfg,
 		Store:   &store.Dynamo{Client: dynamodb.NewFromConfig(awsCfg), Table: cfg.TableName},
-		EC2:     &ec2ctl.AWS{EC2: ec2.NewFromConfig(awsCfg), InstanceID: cfg.InstanceID},
 		Discord: discord.NewREST(func(ctx context.Context) (string, error) { return params.Get(ctx, "discord/bot_token") }, params.Invalidate),
 		Invoker: selfInvoker{client: lambdasvc.NewFromConfig(awsCfg), name: os.Getenv("AWS_LAMBDA_FUNCTION_NAME")},
 		Now:     time.Now,

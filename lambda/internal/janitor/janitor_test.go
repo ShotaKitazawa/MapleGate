@@ -200,10 +200,10 @@ func TestNoIdleJudgementWhileTheNodeIsNotReportingForTheCurrentBoot(t *testing.T
 	assert.Equal(t, store.StatusApproved, e.status(t, "s1"), "after a reboot the peer is not yet re-applied, which is not the user's idleness")
 }
 
-func TestLiveSessionStartsAStoppedNode(t *testing.T) {
+func TestApprovedSessionStartsAStoppedNode(t *testing.T) {
 	e := newEnv()
 	e.ec2.state = ec2ctl.StateStopped
-	e.pending(t, "s1", "alice")
+	e.approved(t, "s1", "alice", "10.66.0.2")
 
 	e.run(t)
 	assert.Equal(t, 1, e.ec2.started)
@@ -213,10 +213,27 @@ func TestLiveSessionStartsAStoppedNode(t *testing.T) {
 	assert.Equal(t, 1, e.ec2.started, "running nodes are left alone")
 }
 
-func TestBreakerStopsARestartLoop(t *testing.T) {
+func TestARequestStillAwaitingApprovalDoesNotStartTheNode(t *testing.T) {
 	e := newEnv()
 	e.ec2.state = ec2ctl.StateStopped
 	e.pending(t, "s1", "alice")
+
+	e.run(t)
+	e.now = e.now.Add(5 * time.Minute)
+	e.run(t)
+	assert.Equal(t, 0, e.ec2.started, "a refusal or an unanswered request must not cost a start")
+
+	require.NoError(t, e.st.LeaseIP(ctx, "10.66.0.2", "s1", e.now.Add(time.Hour)))
+	require.NoError(t, e.st.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusApproved,
+		store.Update{Address: "10.66.0.2", Approver: "bob", ExpiresAt: e.now.Add(4 * time.Hour), ApprovedAt: e.now}))
+	e.run(t)
+	assert.Equal(t, 1, e.ec2.started, "approval is what starts it")
+}
+
+func TestBreakerStopsARestartLoop(t *testing.T) {
+	e := newEnv()
+	e.ec2.state = ec2ctl.StateStopped
+	e.approved(t, "s1", "alice", "10.66.0.2")
 
 	e.run(t)
 	e.now = e.now.Add(time.Minute)
@@ -230,13 +247,13 @@ func TestBreakerStopsARestartLoop(t *testing.T) {
 	s, _ := e.st.GetSession(ctx, "s1")
 	assert.Contains(t, s.Error, "did not come up")
 
-	e.pending(t, "s2", "bob")
+	e.approved(t, "s2", "bob", "10.66.0.3")
 	e.now = e.now.Add(time.Minute)
 	e.run(t)
 	assert.Equal(t, 2, e.ec2.started, "cooldown")
 
 	e.now = e.now.Add(20 * time.Minute)
-	e.pending(t, "s3", "carol")
+	e.approved(t, "s3", "carol", "10.66.0.4")
 	e.run(t)
 	assert.Equal(t, 3, e.ec2.started, "cooldown over")
 }
@@ -245,7 +262,7 @@ func TestStartErrorsCountTowardTheBreaker(t *testing.T) {
 	e := newEnv()
 	e.ec2.state = ec2ctl.StateStopped
 	e.ec2.err = errors.New("InsufficientInstanceCapacity")
-	e.pending(t, "s1", "alice")
+	e.approved(t, "s1", "alice", "10.66.0.2")
 
 	e.run(t)
 	e.now = e.now.Add(time.Minute)

@@ -9,13 +9,11 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/internal/store"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/config"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/discord"
-	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ec2ctl"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/sessionapi"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/oklog/ulid/v2"
 )
@@ -37,7 +35,6 @@ func main() {
 	h := &sessionapi.Handler{
 		Cfg:     cfg,
 		Store:   &store.Dynamo{Client: dynamodb.NewFromConfig(awsCfg), Table: cfg.TableName},
-		EC2:     &ec2ctl.AWS{EC2: ec2.NewFromConfig(awsCfg), InstanceID: cfg.InstanceID},
 		Discord: discord.NewREST(func(ctx context.Context) (string, error) { return params.Get(ctx, "discord/bot_token") }, params.Invalidate),
 		Auth:    sessionapi.IAMAuth{},
 		Now:     time.Now,

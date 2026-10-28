@@ -176,14 +176,14 @@ func newWorld(t *testing.T, seed int64) *world {
 	}
 	id := 0
 	w.api = &sessionapi.Handler{
-		Cfg: cfg, Store: w.st, EC2: fakeEC2{w}, Discord: fakeDiscord{w}, Auth: sessionapi.IAMAuth{},
+		Cfg: cfg, Store: w.st, Discord: fakeDiscord{w}, Auth: sessionapi.IAMAuth{},
 		ChannelID:       func(context.Context) (string, error) { return "ch", nil },
 		ServerPublicKey: func(context.Context) (string, error) { return "srv", nil },
 		Now:             func() time.Time { return w.now },
 		NewID:           func() string { id++; return fmt.Sprintf("s%04d", id) },
 	}
 	w.inter = &interactions.Handler{
-		Cfg: cfg, Store: w.st, EC2: fakeEC2{w}, Discord: fakeDiscord{w}, Invoker: noInvoke{},
+		Cfg: cfg, Store: w.st, Discord: fakeDiscord{w}, Invoker: noInvoke{},
 		ChannelID: func(context.Context) (string, error) { return "ch", nil },
 		Now:       func() time.Time { return w.now },
 	}

@@ -14,14 +14,12 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/internal/store"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/config"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/discord"
-	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ec2ctl"
 	"github.com/aws/aws-lambda-go/events"
 )
 
 type Handler struct {
 	Cfg       config.Config
 	Store     store.Store
-	EC2       ec2ctl.Controller
 	Discord   discord.Client
 	Auth      Authenticator
 	ChannelID func(ctx context.Context) (string, error)
@@ -83,10 +81,6 @@ func (h *Handler) create(ctx context.Context, user string, req events.LambdaFunc
 		return jsonResp(http.StatusServiceUnavailable, map[string]string{"error": "temporarily unavailable"})
 	}
 
-	// Starting is best effort: the janitor starts the node for any live session it finds stopped.
-	if err := h.EC2.EnsureStarted(ctx); err != nil {
-		slog.Warn("start instance", "session", s.ID, "err", err)
-	}
 	if err := h.postApproval(ctx, s); err != nil {
 		slog.Error("post approval", "session", s.ID, "err", err)
 		_ = h.Store.Transition(ctx, s.ID, []store.Status{store.StatusPending}, store.StatusFailed,

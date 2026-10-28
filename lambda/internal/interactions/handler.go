@@ -16,7 +16,6 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/internal/store"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/config"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/discord"
-	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ec2ctl"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ipam"
 	"github.com/aws/aws-lambda-go/events"
 )
@@ -40,7 +39,6 @@ type AsyncEvent struct {
 type Handler struct {
 	Cfg       config.Config
 	Store     store.Store
-	EC2       ec2ctl.Controller
 	Discord   discord.Client
 	Invoker   Invoker
 	ChannelID func(ctx context.Context) (string, error)
@@ -152,9 +150,6 @@ func (h *Handler) approve(ctx context.Context, s store.Session, who Approver) er
 	if err != nil {
 		_ = h.Store.ReleaseIP(ctx, addr, s.ID)
 		return h.lost(ctx, s, err)
-	}
-	if err := h.EC2.EnsureStarted(ctx); err != nil {
-		slog.Warn("start instance", "session", s.ID, "err", err)
 	}
 	h.updateMessage(ctx, s, "approved", who.Name)
 	return nil

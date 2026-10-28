@@ -36,9 +36,9 @@ The API status is derived: `approved` with `WORK.applied_boot_id == NODE.boot_id
 
 ## Components
 
-- session-api: POST creates META + WORK + ACTIVE in one transaction; 409 carries the existing session_id; StartInstances is best effort. GET and DELETE touch DynamoDB only.
-- discord-interactions: immediate ack, then async self-invoke. Approval = lease IP, conditional transition (release the lease if it lost), StartInstances. Signed timestamps older than 5 min are rejected.
-- janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when live sessions exist and it is stopped (breaker-guarded); release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; post to Discord when the node is silent or stays up with nothing live (see B13, B14); write HEALTH.
+- session-api: POST creates META + WORK + ACTIVE in one transaction; 409 carries the existing session_id. It never touches the instance. GET and DELETE touch DynamoDB only.
+- discord-interactions: immediate ack, then async self-invoke. Approval = lease IP, conditional transition (release the lease if it lost). It never touches the instance. Signed timestamps older than 5 min are rejected.
+- janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when an approved session exists and it is stopped (breaker-guarded), the only place the node is started from; release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; post to Discord when the node is silent or stays up with nothing live (see B13, B14); write HEALTH.
 - vpn-agent (node, tick 10 s, heartbeat 30 s): converge peers on WORK (validated, full diff), report observations, decide to stop.
 
 ## Agent modes
@@ -127,7 +127,7 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 
 ## Who may do what to the instance
 
-Terraform creates and deletes the instance. The Lambdas may only start it (`ec2:StartInstances` on this one instance) and describe it. Only the node stops itself, through the agent: it can re-check DynamoDB just before powering off, and it can still stop when DynamoDB is unreachable. A node that does not stop is reported, not stopped from outside: a wrong guess from the janitor would cut a live session.
+Terraform creates and deletes the instance. Only the janitor may start it (`ec2:StartInstances` on this one instance) and describe it; the two public Lambdas hold no EC2 rights. Only the node stops itself, through the agent: it can re-check DynamoDB just before powering off, and it can still stop when DynamoDB is unreachable. A node that does not stop is reported, not stopped from outside: a wrong guess from the janitor would cut a live session.
 
 ## Known compromises
 
@@ -142,3 +142,7 @@ Revisit when the server key moves off the instance (an SSM SecureString, for exa
 There is no request rate limit. A user holds at most one live session (`ACTIVE`), and the node cannot start and stop faster than its own timers allow: it stays up for at least the boot grace plus the idle stop before powering off. A limit would add nothing to what the Identity Center authorisation and the Discord approval already decide, and it delayed legitimate reconnects.
 
 There is no automatic backstop for a node that does not stop: no uptime cap, because a fixed cap drops a session that started late (sessions last 4 hours and friends may play in turns), and no peer-aware timer, because the janitor reports the same cases and an unstopped t4g.nano costs about a cent an hour. Revisit if the alerts become frequent.
+
+## Starting the node
+
+Nothing starts the node before an approval. A request that is refused, or that nobody answers, costs no start, and a person who may only ask cannot boot the instance. The janitor starts it for an approved session within its next run (at most a minute, the Scheduler's finest interval), then the boot follows. The price is that a cold start after approval takes that minute longer than a node warmed during the wait would. Starting from the approval handler as well would save it, at the cost of two starters, a start outside the breaker, and EC2 rights on a public Lambda; the janitor stays the only one. The provisioning timeout of 5 minutes has to cover the wait, the boot and the first apply.

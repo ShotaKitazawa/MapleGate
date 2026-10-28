@@ -45,6 +45,14 @@ data "aws_iam_policy_document" "common" {
     resources = [aws_dynamodb_table.gamevpn.arn]
   }
   statement {
+    actions   = ["ssm:GetParameter"]
+    resources = [local.param_arn]
+  }
+}
+
+# Only the janitor touches the instance: the other two are reachable from the Internet and only record intent.
+data "aws_iam_policy_document" "janitor_instance" {
+  statement {
     actions   = ["ec2:StartInstances"]
     resources = [local.instance_arn]
   }
@@ -52,10 +60,6 @@ data "aws_iam_policy_document" "common" {
   statement {
     actions   = ["ec2:DescribeInstances"]
     resources = ["*"]
-  }
-  statement {
-    actions   = ["ssm:GetParameter"]
-    resources = [local.param_arn]
   }
 }
 
@@ -76,6 +80,11 @@ resource "aws_iam_role_policy" "common" {
   for_each = local.functions
   role     = aws_iam_role.fn[each.key].id
   policy   = data.aws_iam_policy_document.common.json
+}
+
+resource "aws_iam_role_policy" "janitor_instance" {
+  role   = aws_iam_role.fn["janitor"].id
+  policy = data.aws_iam_policy_document.janitor_instance.json
 }
 
 resource "aws_iam_role_policy" "discord_self_invoke" {

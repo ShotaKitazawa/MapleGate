@@ -195,7 +195,7 @@ func (j *Janitor) syncMessage(ctx context.Context, w store.Work, sess store.Sess
 	return false
 }
 
-// wake starts a stopped node for live sessions, behind a breaker so a node that never comes up cannot loop forever.
+// wake starts a stopped node for approved sessions, behind a breaker so a node that never comes up cannot loop forever.
 func (j *Janitor) wake(ctx context.Context, live []store.Work, node store.Node, state ec2ctl.State, now time.Time) {
 	switch state {
 	case ec2ctl.StateMissing, ec2ctl.StateTerminated, ec2ctl.StateShuttingDown:
@@ -203,6 +203,10 @@ func (j *Janitor) wake(ctx context.Context, live []store.Work, node store.Node, 
 		return
 	case ec2ctl.StateStopped:
 	default:
+		return
+	}
+	// Someone waiting for approval is no reason to boot the node: a refusal or a request nobody answers would cost a start.
+	if !anyApproved(live) {
 		return
 	}
 
@@ -235,6 +239,15 @@ func (j *Janitor) wake(ctx context.Context, live []store.Work, node store.Node, 
 		h.LastStartAt = now
 	}
 	j.putHealth(ctx, h)
+}
+
+func anyApproved(live []store.Work) bool {
+	for _, w := range live {
+		if w.Phase == store.StatusApproved {
+			return true
+		}
+	}
+	return false
 }
 
 func (j *Janitor) putHealth(ctx context.Context, h store.Health) {

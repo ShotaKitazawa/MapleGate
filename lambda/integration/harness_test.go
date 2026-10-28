@@ -143,7 +143,7 @@ func inspect(name string) (containerInfo, error) {
 	return ci, nil
 }
 
-// containerEC2 is the janitor's and the handlers' EC2: starting the node means running or restarting its container.
+// containerEC2 is the janitor's EC2: starting the node means running or restarting its container.
 type containerEC2 struct {
 	name string
 	run  func() error
@@ -316,7 +316,7 @@ func newCluster(t *testing.T, opts nodeOpts) *cluster {
 	fd := fakeDiscord{}
 	id := 0
 	c.api = &sessionapi.Handler{
-		Cfg: cfg, Store: c.st, EC2: c.ec2, Discord: fd, Auth: sessionapi.IAMAuth{},
+		Cfg: cfg, Store: c.st, Discord: fd, Auth: sessionapi.IAMAuth{},
 		ChannelID:       func(context.Context) (string, error) { return "ch", nil },
 		ServerPublicKey: func(context.Context) (string, error) { return c.serverPub, nil },
 		Now:             time.Now,
@@ -326,7 +326,7 @@ func newCluster(t *testing.T, opts nodeOpts) *cluster {
 	require.NoError(t, err)
 	c.discordSK = sk
 	c.inter = &interactions.Handler{
-		Cfg: cfg, Store: c.st, EC2: c.ec2, Discord: fd, Invoker: invoker{c},
+		Cfg: cfg, Store: c.st, Discord: fd, Invoker: invoker{c},
 		ChannelID: func(context.Context) (string, error) { return "ch", nil },
 		PublicKey: func(context.Context) (ed25519.PublicKey, error) { return pub, nil },
 		Now:       time.Now,

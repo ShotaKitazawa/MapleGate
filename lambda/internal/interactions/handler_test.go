@@ -12,21 +12,10 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/internal/store"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/config"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/discord"
-	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ec2ctl"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type fakeEC2 struct {
-	started int
-	err     error
-}
-
-func (f *fakeEC2) EnsureStarted(context.Context) error { f.started++; return f.err }
-func (f *fakeEC2) State(context.Context) (ec2ctl.State, error) {
-	return ec2ctl.StateRunning, nil
-}
 
 type fakeDiscord struct {
 	updates []discord.Message
@@ -57,7 +46,6 @@ func (f *fakeInvoker) InvokeAsync(_ context.Context, p []byte) error {
 type env struct {
 	h    *Handler
 	st   *store.Mem
-	ec2  *fakeEC2
 	dc   *fakeDiscord
 	inv  *fakeInvoker
 	priv ed25519.PrivateKey
@@ -69,11 +57,10 @@ const signedAt = "1700000000"
 func newEnv(t *testing.T) *env {
 	pub, priv, err := ed25519.GenerateKey(nil)
 	require.NoError(t, err)
-	e := &env{st: store.NewMem(), ec2: &fakeEC2{}, dc: &fakeDiscord{}, inv: &fakeInvoker{}, priv: priv, now: time.Unix(1_700_000_000, 0)}
+	e := &env{st: store.NewMem(), dc: &fakeDiscord{}, inv: &fakeInvoker{}, priv: priv, now: time.Unix(1_700_000_000, 0)}
 	e.h = &Handler{
 		Cfg:       config.Config{WGPort: 51820, WGSubnet: "10.66.0", SessionTTL: 4 * time.Hour},
 		Store:     e.st,
-		EC2:       e.ec2,
 		Discord:   e.dc,
 		Invoker:   e.inv,
 		ChannelID: func(context.Context) (string, error) { return "ch", nil },
@@ -166,22 +153,10 @@ func TestApproveRecordsIntentOnly(t *testing.T) {
 	assert.Equal(t, store.StatusApproved, w.Phase)
 	assert.Equal(t, "10.66.0.2", w.Address, "the node reads the address from WORK")
 	assert.True(t, w.AppliedAt.IsZero(), "applying is the node's job")
-	assert.Equal(t, 1, e.ec2.started)
 	require.Len(t, e.dc.updates, 1)
 	assert.Contains(t, e.dc.updates[0].Content, "approved")
 	assert.Contains(t, e.dc.updates[0].Content, "Bob")
 	assert.Empty(t, e.dc.updates[0].Components, "buttons must go away")
-}
-
-func TestApproveSucceedsEvenIfNodeCannotStart(t *testing.T) {
-	e := newEnv(t)
-	e.seedPending(t)
-	e.ec2.err = errors.New("InsufficientInstanceCapacity")
-
-	require.NoError(t, e.h.HandleAsync(context.Background(), AsyncEvent{Action: "approve", SessionID: "s1"}))
-
-	s, _ := e.st.GetSession(context.Background(), "s1")
-	assert.Equal(t, store.StatusApproved, s.Status, "the janitor keeps retrying the start")
 }
 
 func TestDoublePressApprovesOnce(t *testing.T) {
@@ -221,7 +196,6 @@ func TestApproveAfterPendingDeadline(t *testing.T) {
 
 	s, _ := e.st.GetSession(context.Background(), "s1")
 	assert.Equal(t, store.StatusExpired, s.Status)
-	assert.Equal(t, 0, e.ec2.started)
 }
 
 func TestPressOnDecidedSessionRefreshesMessage(t *testing.T) {

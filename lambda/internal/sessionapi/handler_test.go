@@ -11,21 +11,10 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/internal/store"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/config"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/discord"
-	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ec2ctl"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type fakeEC2 struct {
-	started int
-	err     error
-}
-
-func (f *fakeEC2) EnsureStarted(context.Context) error { f.started++; return f.err }
-func (f *fakeEC2) State(context.Context) (ec2ctl.State, error) {
-	return ec2ctl.StateRunning, nil
-}
 
 type fakeDiscord struct {
 	posted []discord.Message
@@ -65,20 +54,19 @@ var pubKey = base64.StdEncoding.EncodeToString(make([]byte, 32))
 type env struct {
 	h   *Handler
 	st  *flaky
-	ec2 *fakeEC2
 	dc  *fakeDiscord
 	now time.Time
 }
 
 func newEnv() *env {
-	e := &env{st: &flaky{Mem: store.NewMem()}, ec2: &fakeEC2{}, dc: &fakeDiscord{}, now: time.Unix(1_000_000, 0)}
+	e := &env{st: &flaky{Mem: store.NewMem()}, dc: &fakeDiscord{}, now: time.Unix(1_000_000, 0)}
 	n := 0
 	e.h = &Handler{
 		Cfg: config.Config{
 			PendingTTL: 15 * time.Minute, StaleAfter: 2 * time.Minute, WGPort: 51820,
 			AllowedIPs: []string{"0.0.0.0/0", "::/0"}, Keepalive: 25,
 		},
-		Store: e.st, EC2: e.ec2, Discord: e.dc,
+		Store: e.st, Discord: e.dc,
 		Auth:            IAMAuth{},
 		ChannelID:       func(context.Context) (string, error) { return "ch", nil },
 		ServerPublicKey: func(context.Context) (string, error) { return "SERVERKEY", nil },
@@ -137,7 +125,6 @@ func TestCreateSession(t *testing.T) {
 
 	assert.Equal(t, 202, r.StatusCode)
 	assert.Equal(t, "pending", body(t, r)["status"])
-	assert.Equal(t, 1, e.ec2.started)
 	require.Len(t, e.dc.posted, 1)
 	assert.Equal(t, "approve:sid1", e.dc.posted[0].Components[0].Components[0].CustomID)
 	w, err := e.st.GetWork(context.Background(), "sid1")
@@ -162,12 +149,6 @@ func TestCreateSessionLimits(t *testing.T) {
 
 	_ = e.st.ClearActive(context.Background(), "alice", "sid1")
 	assert.Equal(t, 202, e.do("POST", "/session", "alice", createBody()).StatusCode, "a freed slot allows a new request at once")
-}
-
-func TestCreateSessionStartFailureIsNotFatal(t *testing.T) {
-	e := newEnv()
-	e.ec2.err = errors.New("InsufficientInstanceCapacity")
-	assert.Equal(t, 202, e.do("POST", "/session", "alice", createBody()).StatusCode)
 }
 
 func TestCreateSessionDiscordFailureFreesSlot(t *testing.T) {
@@ -269,7 +250,6 @@ func TestDeleteOnlyRecordsIntent(t *testing.T) {
 	w, _ := e.st.GetWork(context.Background(), "s1")
 	assert.Equal(t, store.StatusClosed, w.Phase)
 	assert.True(t, w.RemovedAt.IsZero(), "removal is the node's to confirm")
-	assert.Equal(t, 0, e.ec2.started)
 
 	assert.Equal(t, 200, e.do("DELETE", "/session/s1", "alice", "").StatusCode, "idempotent")
 }
