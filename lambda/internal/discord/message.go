@@ -67,8 +67,12 @@ func ApprovalMessage(sid, user string) Message {
 
 // ResultMessage replaces the buttons with the outcome so it doubles as the approval log.
 func ResultMessage(sid, user, outcome, approver, at string) Message {
+	by := ""
+	if approver != "" {
+		by = " by " + approver
+	}
 	return Message{
-		Content:    fmt.Sprintf("VPN access for **%s** (session `%s`): **%s** by %s at %s", user, sid, outcome, approver, at),
+		Content:    fmt.Sprintf("VPN access for **%s** (session `%s`): **%s**%s at %s", user, sid, outcome, by, at),
 		Components: []Component{},
 	}
 }

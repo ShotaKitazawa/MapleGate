@@ -18,6 +18,11 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D7 | An idle node powers itself off, and a later session starts it again | seen once; the time to stop was not measured |
 | D8 | The public IP changes across stop and start and GET returns the current one | two sessions, two endpoints |
 | D9 | Posting the approval message works (bot token, channel id, permissions) and the message is updated with the outcome | `msg_synced` true after close |
+| D10 | Pressing a button on a request whose session is already closed changes nothing | the press hit a session closed seconds earlier; no live session remained (catalogue D5 and D6) |
+| D11 | Posting fails: a wrong `channel_id` gives 502, the session is `failed` with `discord unavailable`, and after restoring the value the next request is accepted (the slot was free) | recovery took about 10 minutes because the wrong value was cached again just before the restore |
+| D12 | A second request while a session is live returns that session | 409 with the same `session_id` |
+| D13 | The user name stored on a session is the Identity Center user name | META `user` = the first player |
+| D14 | Log retention is set | 14 days on all three groups |
 
 ## Todo
 
@@ -28,8 +33,6 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | A1 | A `players` user can create, read and delete their own session | 202, 200, 200 with the permission set `gamevpn-player` only | both | safe |
 | A2 | An Identity Center user outside `players` is refused | 403 from AWS | both | safe |
 | A3 | A user cannot read or delete another user's session | 404 | both | safe |
-| A4 | The user name stored on a session is the Identity Center user name | META `user` equals the name | claude | safe |
-| A5 | A second request while one session is live returns the existing session | 409 with that `session_id` | claude | safe |
 
 ### Session edges
 
@@ -37,7 +40,6 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 |---|---|---|---|---|
 | S1 | A request nobody approves expires after 15 minutes | `expired`, message updated, node idles out | both | safe |
 | S2 | DELETE while pending | `closed`, buttons replaced by the outcome, no peer ever added | both | safe |
-| S3 | Pressing Approve or Deny on an already decided request | message refreshed, nothing changes (D5, D6 of the catalogue) | both | safe |
 | S4 | Session TTL | with `session_ttl` set to 5m: `expired`, peer removed, IP freed; then put it back | claude | reversible |
 | S5 | No handshake for 10 minutes ends the session | connect, go silent: `closed` with reason `idle` | both | safe |
 | S6 | Approval on a stopped node when the janitor starts it | `active` within the provisioning timeout from a cold start | claude | safe |
@@ -60,7 +62,6 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
-| C1 | Posting fails (set `channel_id` to a wrong value for a few minutes) | POST returns 502, the session is `failed`, the slot is free; restore and it works | claude | reversible |
 | C2 | The approval message was deleted by a person | closing the session still completes (404 is treated as synced) | both | safe |
 
 ### Cost and operations
@@ -68,7 +69,6 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
 | O1 | AWS Budgets monthly alert exists and fires | a test budget with a tiny threshold sends a notice | you | safe |
-| O2 | CloudWatch log retention is set | retention shown on the three log groups | claude | safe |
 
 ### The game
 
