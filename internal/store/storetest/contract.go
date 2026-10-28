@@ -197,11 +197,19 @@ func healthRoundTrip(t *testing.T, s Full) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, h.StartFailures)
 
-	require.NoError(t, s.PutHealth(ctx, store.Health{LastRun: t0, LastStartAt: t0.Add(time.Second), StartFailures: 2, CooldownUntil: t0.Add(time.Minute)}))
+	require.NoError(t, s.PutHealth(ctx, store.Health{
+		LastRun: t0, LastStartAt: t0.Add(time.Second), StartFailures: 2, CooldownUntil: t0.Add(time.Minute),
+		RunningSince: t0.Add(2 * time.Minute), IdleSince: t0.Add(3 * time.Minute),
+		UnresponsiveAlertedAt: t0.Add(4 * time.Minute), OverstayAlertedAt: t0.Add(5 * time.Minute),
+	}))
 	h, _ = s.GetHealth(ctx)
 	assert.Equal(t, 2, h.StartFailures)
 	assert.Equal(t, t0.Add(time.Second), h.LastStartAt)
 	assert.Equal(t, t0.Add(time.Minute), h.CooldownUntil)
+	assert.Equal(t, t0.Add(2*time.Minute), h.RunningSince)
+	assert.Equal(t, t0.Add(3*time.Minute), h.IdleSince)
+	assert.Equal(t, t0.Add(4*time.Minute), h.UnresponsiveAlertedAt)
+	assert.Equal(t, t0.Add(5*time.Minute), h.OverstayAlertedAt)
 }
 
 func messageBookkeeping(t *testing.T, s Full) {

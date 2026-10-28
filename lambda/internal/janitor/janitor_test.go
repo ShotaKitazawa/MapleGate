@@ -29,9 +29,15 @@ func (f *fakeEC2) State(context.Context) (ec2ctl.State, error) {
 type fakeDiscord struct {
 	updates int
 	err     error
+	posts   []string
+	postErr error
 }
 
-func (f *fakeDiscord) PostMessage(context.Context, string, discord.Message) (string, error) {
+func (f *fakeDiscord) PostMessage(_ context.Context, _ string, m discord.Message) (string, error) {
+	if f.postErr != nil {
+		return "", f.postErr
+	}
+	f.posts = append(f.posts, m.Content)
 	return "m", nil
 }
 func (f *fakeDiscord) UpdateMessage(context.Context, string, string, discord.Message) error {
@@ -56,6 +62,7 @@ func newEnv() *env {
 		Cfg: Config{
 			ProvisionTimeout: 5 * time.Minute, HandshakeIdle: 10 * time.Minute, StaleAfter: 2 * time.Minute,
 			MsgSyncGiveUp: time.Hour, StartCooldown: 15 * time.Minute, BreakerLimit: 2,
+			InstanceID: "i-1", UnresponsiveAfter: 10 * time.Minute, OverstayAfter: 35 * time.Minute, AlertRepeat: time.Hour,
 		},
 		Store: e.st, EC2: e.ec2, Discord: e.dc,
 		ChannelID: func(context.Context) (string, error) { return "ch", nil },

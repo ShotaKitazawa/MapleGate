@@ -84,6 +84,13 @@ type Health struct {
 	LastStartAt   time.Time
 	StartFailures int
 	CooldownUntil time.Time
+
+	// What the janitor has observed about the node, so it can tell how long a state has lasted.
+	RunningSince time.Time
+	IdleSince    time.Time
+	// The last time each kind of leftover-node alert was posted; zero once the condition clears.
+	UnresponsiveAlertedAt time.Time
+	OverstayAlertedAt     time.Time
 }
 
 // Update lists the fields Transition may change; zero values are left untouched.

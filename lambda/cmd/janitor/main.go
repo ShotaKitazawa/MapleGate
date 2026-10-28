@@ -36,6 +36,7 @@ func main() {
 		Cfg: janitor.Config{
 			ProvisionTimeout: cfg.ProvisionWait, HandshakeIdle: cfg.HandshakeIdle, StaleAfter: cfg.StaleAfter,
 			MsgSyncGiveUp: cfg.MsgSyncGiveUp, StartCooldown: cfg.StartCooldown, BreakerLimit: cfg.BreakerLimit,
+			InstanceID: cfg.InstanceID, UnresponsiveAfter: cfg.UnresponsiveAfter, OverstayAfter: cfg.OverstayAfter, AlertRepeat: cfg.AlertRepeat,
 		},
 		Store:   &store.Dynamo{Client: dynamodb.NewFromConfig(awsCfg), Table: cfg.TableName},
 		EC2:     &ec2ctl.AWS{EC2: ec2.NewFromConfig(awsCfg), InstanceID: cfg.InstanceID},

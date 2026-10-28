@@ -19,6 +19,11 @@ type Config struct {
 	MsgSyncGiveUp    time.Duration
 	StartCooldown    time.Duration
 	BreakerLimit     int
+
+	InstanceID        string
+	UnresponsiveAfter time.Duration
+	OverstayAfter     time.Duration
+	AlertRepeat       time.Duration
 }
 
 // Janitor reclaims every transient state and retries every side effect; each pass is safe to repeat or skip.
@@ -63,6 +68,7 @@ func (j *Janitor) Run(ctx context.Context) error {
 		return fmt.Errorf("get health: %w", err)
 	}
 	h.LastRun = now
+	j.watch(ctx, &h, state, node, len(live), now)
 	return j.Store.PutHealth(ctx, h)
 }
 

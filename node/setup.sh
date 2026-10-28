@@ -66,5 +66,8 @@ fi
 install -m0755 "$D/node/agent-run.sh" "$D/agent-run.sh"
 install -m0755 "$D/node/agent-promote.sh" "$D/agent-promote.sh"
 install -m0644 "$D"/node/units/* /etc/systemd/system/
+# The instance is long-lived, so a unit dropped from the bundle stays enabled until it is removed here.
+systemctl disable --now vpn-max-uptime.timer 2>/dev/null || true
+rm -f /etc/systemd/system/vpn-max-uptime.timer /etc/systemd/system/vpn-max-uptime.service
 systemctl daemon-reload
-systemctl enable --now vpn-agent.service vpn-max-uptime.timer vpn-agent-promote.timer
+systemctl enable --now vpn-agent.service vpn-agent-promote.timer

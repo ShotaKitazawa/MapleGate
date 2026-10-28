@@ -191,6 +191,7 @@ func newWorld(t *testing.T, seed int64) *world {
 		Cfg: janitor.Config{
 			ProvisionTimeout: 5 * time.Minute, HandshakeIdle: 10 * time.Minute, StaleAfter: 2 * time.Minute,
 			MsgSyncGiveUp: time.Hour, StartCooldown: 15 * time.Minute, BreakerLimit: 2,
+			InstanceID: "i-1", UnresponsiveAfter: 10 * time.Minute, OverstayAfter: 35 * time.Minute, AlertRepeat: time.Hour,
 		},
 		Store: w.st, EC2: fakeEC2{w}, Discord: fakeDiscord{w},
 		ChannelID: func(context.Context) (string, error) { return "ch", nil },

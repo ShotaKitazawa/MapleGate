@@ -11,7 +11,7 @@ DynamoDB is the single source of truth. Every component converges on it; none ho
 - I5 Fail-static: when DynamoDB is unreadable the agent keeps peers and degrades by local expiry and local handshake idleness.
 - I6 An IP lease is released only after the node confirmed the peer's removal, or the node is confirmed stopped.
 - I7 Absence is never a reason to remove a peer. Removal needs evidence (terminal or expired item) or an unknown peer.
-- I8 Cost and exposure have absolute caps (MAX_UPTIME, start breaker, local expiry).
+- I8 Cost and exposure are bounded by the start breaker and local expiry; a node that outlives its own logic is reported to Discord by the janitor and stopped by a human, never from outside automatically.
 
 ## Data model (table `gamevpn`)
 
@@ -38,8 +38,8 @@ The API status is derived: `approved` with `WORK.applied_boot_id == NODE.boot_id
 
 - session-api: POST creates META + WORK + ACTIVE in one transaction; 409 carries the existing session_id; StartInstances is best effort. GET and DELETE touch DynamoDB only.
 - discord-interactions: immediate ack, then async self-invoke. Approval = lease IP, conditional transition (release the lease if it lost), StartInstances. Signed timestamps older than 5 min are rejected.
-- janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when live sessions exist and it is stopped (breaker-guarded); release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; write HEALTH.
-- vpn-agent (node, tick 10 s, heartbeat 30 s): converge peers on WORK (validated, full diff), report observations, decide to stop. MAX_UPTIME is a separate timer.
+- janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when live sessions exist and it is stopped (breaker-guarded); release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; post to Discord when the node is silent or stays up with nothing live (see B13, B14); write HEALTH.
+- vpn-agent (node, tick 10 s, heartbeat 30 s): converge peers on WORK (validated, full diff), report observations, decide to stop.
 
 ## Agent modes
 
@@ -49,7 +49,7 @@ The API status is derived: `approved` with `WORK.applied_boot_id == NODE.boot_id
 
 ## Parameters
 
-AGENT_TICK 10s, HEARTBEAT 30s, STALE 120s, BOOT_GRACE 10m, IDLE_STOP 15m, BLIND_PEER0_STOP 30m, MAX_UPTIME 5h, BLIND_MAX unlimited, START_BREAKER 2 consecutive / cooldown 15m, PARAMS_CACHE_TTL 5m, DISCORD_TS_TOLERANCE 5m, MSG_SYNC_GIVEUP 1h, CLOCK_MARGIN 30s.
+AGENT_TICK 10s, HEARTBEAT 30s, STALE 120s, BOOT_GRACE 10m, IDLE_STOP 15m, BLIND_PEER0_STOP 30m, BLIND_MAX unlimited, NODE_UNRESPONSIVE_AFTER 10m, NODE_OVERSTAY_AFTER 35m, NODE_ALERT_REPEAT 1h, START_BREAKER 2 consecutive / cooldown 15m, PARAMS_CACHE_TTL 5m, DISCORD_TS_TOLERANCE 5m, MSG_SYNC_GIVEUP 1h, CLOCK_MARGIN 30s.
 
 ## Failure catalogue
 
@@ -68,7 +68,7 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 
 ### B. The VM
 - B1 agent crash or OOM: systemd restarts; peers survive in the kernel; resume from the local cache.
-- B2 agent panic loop: backoff; MAX_UPTIME; the breaker stops restarts.
+- B2 agent panic loop: backoff; the breaker stops restarts; the janitor reports a node that stays silent (B13).
 - B3 OS reboot drops peers: agent re-applies from WORK; GET is `provisioning` meanwhile.
 - B4 stop/start changes the public IP: agent updates NODE.public_ip.
 - B5 wg0 cannot be created: agent reports `error`; janitor fails the session after 5 min; breaker.
@@ -79,6 +79,8 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 - B10 clock step: monotonic clock for intervals, wall clock with CLOCK_MARGIN for expiry.
 - B11 server key lost or instance replaced: public key parameter refreshed each boot; the janitor fails live sessions when the instance is terminated.
 - B12 two nodes: instance_id check on NODE; takeover only when last_seen is older than 5 min.
+- B13 the VM hangs, or the agent is dead while the OS lives: nothing on the node can stop it. The janitor sees a running instance whose heartbeat has been silent for NODE_UNRESPONSIVE_AFTER (counted from when it started running, since the heartbeat left by the previous run is old) and posts to Discord, again every NODE_ALERT_REPEAT while it lasts. A human stops it.
+- B14 the agent is healthy but does not stop an idle node: the janitor has seen no live session for NODE_OVERSTAY_AFTER (boot grace plus idle stop plus margin) and posts the same way.
 
 ### C. Lambda <-> AWS
 - C1 DynamoDB error: 503; transactions leave no half state.
@@ -97,7 +99,7 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 - C14 janitor stopped: the node enforces expiry and stop locally; GET/POST evaluate expiry lazily.
 - C15 start loop: two starts without heartbeat fail live sessions and pause starts for 15 min.
 - C16 META removed by TTL, orphan WORK: treated as terminal, deleted after `removed_at`.
-- C17 regional outage: out of scope; MAX_UPTIME and budget alarms bound exposure.
+- C17 regional outage: out of scope; budget alarms bound exposure.
 
 ### D. Discord
 - D1 post fails: session failed, 502, active slot released.
@@ -120,12 +122,12 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 - F2 table deletion: deletion protection.
 - F3 bad Lambda deploy: idempotent transitions plus janitor; redeploy to roll back.
 - F4 IAM mistakes: seen as A3; covered by the live checklist.
-- F5 runaway cost: MAX_UPTIME, breaker, budgets.
+- F5 runaway cost: breaker, node alerts (B13, B14), budgets.
 - F6 secret leakage: never log keys, tokens or bodies.
 
 ## Who may do what to the instance
 
-Terraform creates and deletes the instance. The Lambdas may only start it (`ec2:StartInstances` on this one instance) and describe it. Only the node stops itself, through the agent or the 5 hour cap: it can re-check DynamoDB just before powering off, and it can still stop when DynamoDB is unreachable.
+Terraform creates and deletes the instance. The Lambdas may only start it (`ec2:StartInstances` on this one instance) and describe it. Only the node stops itself, through the agent: it can re-check DynamoDB just before powering off, and it can still stop when DynamoDB is unreachable. A node that does not stop is reported, not stopped from outside: a wrong guess from the janitor would cut a live session.
 
 ## Known compromises
 
@@ -138,3 +140,5 @@ The instance is long-lived and `ignore_changes` covers `ami`, `user_data` and `a
 Revisit when the server key moves off the instance (an SSM SecureString, for example). Replacement then costs only the live sessions, and a procedure that replaces the node while no session is live, with a fresh AMI, lets `ami` come out of `ignore_changes`. `associate_public_ip_address` is there because a stopped instance reports no public IP and the provider reads that as drift; drop it once the provider or the layout no longer does.
 
 There is no request rate limit. A user holds at most one live session (`ACTIVE`), and the node cannot start and stop faster than its own timers allow: it stays up for at least the boot grace plus the idle stop before powering off. A limit would add nothing to what the Identity Center authorisation and the Discord approval already decide, and it delayed legitimate reconnects.
+
+There is no automatic backstop for a node that does not stop: no uptime cap, because a fixed cap drops a session that started late (sessions last 4 hours and friends may play in turns), and no peer-aware timer, because the janitor reports the same cases and an unstopped t4g.nano costs about a cent an hour. Revisit if the alerts become frequent.

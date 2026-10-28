@@ -401,11 +401,17 @@ func (d *Dynamo) GetHealth(ctx context.Context) (Health, error) {
 		return Health{}, err
 	}
 	sf, _ := strconv.Atoi(numStr(it, "start_failures"))
-	return Health{LastRun: tm(it, "last_run"), LastStartAt: tm(it, "last_start_at"), StartFailures: sf, CooldownUntil: tm(it, "cooldown_until")}, nil
+	return Health{
+		LastRun: tm(it, "last_run"), LastStartAt: tm(it, "last_start_at"), StartFailures: sf, CooldownUntil: tm(it, "cooldown_until"),
+		RunningSince: tm(it, "running_since"), IdleSince: tm(it, "idle_since"),
+		UnresponsiveAlertedAt: tm(it, "unresponsive_alerted_at"), OverstayAlertedAt: tm(it, "overstay_alerted_at"),
+	}, nil
 }
 
 func (d *Dynamo) PutHealth(ctx context.Context, h Health) error {
-	it := with(healthKey(), "last_run", t(h.LastRun), "last_start_at", t(h.LastStartAt), "start_failures", n(int64(h.StartFailures)), "cooldown_until", t(h.CooldownUntil))
+	it := with(healthKey(), "last_run", t(h.LastRun), "last_start_at", t(h.LastStartAt), "start_failures", n(int64(h.StartFailures)), "cooldown_until", t(h.CooldownUntil),
+		"running_since", t(h.RunningSince), "idle_since", t(h.IdleSince),
+		"unresponsive_alerted_at", t(h.UnresponsiveAlertedAt), "overstay_alerted_at", t(h.OverstayAlertedAt))
 	_, err := d.Client.PutItem(ctx, &dynamodb.PutItemInput{TableName: &d.Table, Item: it})
 	return err
 }

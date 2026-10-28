@@ -74,7 +74,7 @@ Live checks worth doing once (they are not covered by tests):
 
 - cut the node's egress (remove the security group egress rule) and confirm peers stay up, new approvals fail after 5 minutes, and everything recovers afterwards;
 - narrow the node's DynamoDB policy and confirm the agent stops reporting while the janitor stops restarting a node that never comes up;
-- stop the agent and confirm the node still powers off by itself (absolute 5 hour cap).
+- stop the agent (`systemctl stop vpn-agent`) and confirm that Discord gets a "has not reported" alert after about 10 minutes, then stop the node by hand.
 
 ## Development
 
