@@ -53,10 +53,14 @@ func (j *Janitor) Run(ctx context.Context) error {
 	}
 
 	var live []store.Work
+	needNode := 0
 	for _, w := range works {
 		w.Phase = j.sweep(ctx, w, node, state, now)
 		if w.Phase.Live() {
 			live = append(live, w)
+		}
+		if w.Phase.NeedsNode() {
+			needNode++
 		}
 	}
 	if len(live) > 0 {
@@ -68,7 +72,7 @@ func (j *Janitor) Run(ctx context.Context) error {
 		return fmt.Errorf("get health: %w", err)
 	}
 	h.LastRun = now
-	j.watch(ctx, &h, state, node, len(live), now)
+	j.watch(ctx, &h, state, node, needNode, now)
 	return j.Store.PutHealth(ctx, h)
 }
 
@@ -206,7 +210,7 @@ func (j *Janitor) wake(ctx context.Context, live []store.Work, node store.Node, 
 		return
 	}
 	// Someone waiting for approval is no reason to boot the node: a refusal or a request nobody answers would cost a start.
-	if !anyApproved(live) {
+	if !anyNeedsNode(live) {
 		return
 	}
 
@@ -241,9 +245,9 @@ func (j *Janitor) wake(ctx context.Context, live []store.Work, node store.Node, 
 	j.putHealth(ctx, h)
 }
 
-func anyApproved(live []store.Work) bool {
+func anyNeedsNode(live []store.Work) bool {
 	for _, w := range live {
-		if w.Phase == store.StatusApproved {
+		if w.Phase.NeedsNode() {
 			return true
 		}
 	}

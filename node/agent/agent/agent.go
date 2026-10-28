@@ -327,7 +327,7 @@ func (a *Agent) maybeStop(ctx context.Context, works []store.Work, now time.Time
 func liveItems(works []store.Work, now time.Time) int {
 	n := 0
 	for _, w := range works {
-		if w.Phase.Live() && now.Before(w.ExpiresAt) {
+		if w.Phase.NeedsNode() && now.Before(w.ExpiresAt) {
 			n++
 		}
 	}

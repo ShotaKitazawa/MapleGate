@@ -28,6 +28,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D17 | G2 (partly): with all traffic in the tunnel the visible address is the node's | IPv6 was `none` with and without the tunnel, but the test container has no IPv6 route, so a leak is not ruled out; see the findings below |
 | D18 | S5: no handshake ends the session | `closed` with reason `idle` 642 seconds after the last recorded handshake (10 minutes plus the janitor interval) |
 | D19 | The janitor raises no false node alert across a full cycle: session, idle, stop | no alert recorded, none in the log |
+| D20 | A request awaiting approval does not start a stopped node | the node stayed `stopped` for 150 seconds with a pending request, over several janitor runs |
 
 ## Todo
 
@@ -43,9 +44,9 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
-| S1 | A request nobody approves expires after 15 minutes | `expired`, message updated, node idles out | both | safe |
+| S1 | A request nobody approves expires at the approval deadline (15 minutes) | `expired`, message updated, node idles out | both | safe |
 | S2 | DELETE while pending | `closed`, buttons replaced by the outcome, no peer ever added | both | safe |
-| S4 | Session TTL | with `session_ttl` set to 5m: `expired`, peer removed, IP freed; then put it back | claude | reversible |
+| S4 | An approved session ends at its TTL (4 hours; the approval deadline is a different timer) | with `session_ttl` set to 5m: `expired`, peer removed, IP freed; then put it back | claude | reversible |
 | S6 | Approval on a stopped node when the janitor starts it | `active` within the provisioning timeout from a cold start | claude | safe |
 
 ### Node failures
@@ -70,20 +71,20 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
-| O1 | AWS Budgets monthly alert exists and fires | a test budget with a tiny threshold sends a notice | you | safe |
 
 ### The game
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
-| G1 | Log in to the game through the tunnel from a real machine (import the config from `gamevpn-cli up` into the WireGuard app) | logs in, plays, latency acceptable | you | safe |
-| G3 | Large packets pass (MTU) | `ping -M do -s 1372` through the tunnel works, or the config needs a lower MTU | both | safe |
 
-Not covered until the client exists (Phase 4 onward): device flow sign-in, credential refresh during a session, tunnel set-up on Windows and macOS, route clean-up on disconnect.
+## Full end-to-end, after the client exists (Phase 4 onward)
 
-## Findings from the checks
+These need the real client and a real machine, so they wait until it is built. The server side is covered above.
 
-- **DNS is not sent through the tunnel.** The issued config has no DNS setting, so name lookups go to the client's local resolver (seen: 192.168.64.1 on eth0). Traffic is tunnelled; the queries are not.
-- **The server's wg0 MTU is 8921**, derived by wg-quick from the interface MTU (9001), against a client default of 1420 and an Internet path of about 1500. A 20 MB download through the tunnel worked at about 96 Mbit/s with a client MTU of 1200, so nothing failed here, but a real 1500 byte path may fragment replies. Setting `MTU = 1420` on the server and clamping TCP MSS is the usual fix; decide before the real client ships.
-- The running agent is `agent.good`: promotion after the first healthy tick happened (N6, first half).
-- The max uptime timer is gone from the instance after the reboot.
+| ID | What | Pass when | Who |
+|---|---|---|---|
+| F1 | Log in to the game through the tunnel and play | logs in, plays, latency acceptable | you |
+| F2 | Path MTU with the config as issued | no stalls on large transfers; if there are, set the server `MTU` and clamp TCP MSS | both |
+| F3 | AWS Budgets monthly alert exists and fires | a test budget with a tiny threshold sends a notice | you |
+| F4 | Device flow sign-in, credential refresh during a session, tunnel set-up on Windows and macOS, route clean-up on disconnect | as the client phases define | both |
+| F5 | Which game destinations need the tunnel (narrowing `AllowedIPs`), and whether server choice depends on where DNS is resolved | the list from a packet capture; DNS settings decided then | both |

@@ -38,7 +38,7 @@ The API status is derived: `approved` with `WORK.applied_boot_id == NODE.boot_id
 
 - session-api: POST creates META + WORK + ACTIVE in one transaction; 409 carries the existing session_id. It never touches the instance. GET and DELETE touch DynamoDB only.
 - discord-interactions: immediate ack, then async self-invoke. Approval = lease IP, conditional transition (release the lease if it lost). It never touches the instance. Signed timestamps older than 5 min are rejected.
-- janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when an approved session exists and it is stopped (breaker-guarded), the only place the node is started from; release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; post to Discord when the node is silent or stays up with nothing live (see B13, B14); write HEALTH.
+- janitor (Scheduler, 1 min, concurrency 1): deadlines and idleness transitions; start the node when an approved session exists and it is stopped (breaker-guarded), the only place the node is started from; release IPs and delete WORK after `removed_at`; set `removed_at` itself only while the node is stopped; retry unsynced Discord messages; post to Discord when the node is silent or stays up with no approved session (see B13, B14); write HEALTH.
 - vpn-agent (node, tick 10 s, heartbeat 30 s): converge peers on WORK (validated, full diff), report observations, decide to stop.
 
 ## Agent modes
@@ -80,7 +80,7 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 - B11 server key lost or instance replaced: public key parameter refreshed each boot; the janitor fails live sessions when the instance is terminated.
 - B12 two nodes: instance_id check on NODE; takeover only when last_seen is older than 5 min.
 - B13 the VM hangs, or the agent is dead while the OS lives: nothing on the node can stop it. The janitor sees a running instance whose heartbeat has been silent for NODE_UNRESPONSIVE_AFTER (counted from when it started running, since the heartbeat left by the previous run is old) and posts to Discord, again every NODE_ALERT_REPEAT while it lasts. A human stops it.
-- B14 the agent is healthy but does not stop an idle node: the janitor has seen no live session for NODE_OVERSTAY_AFTER (boot grace plus idle stop plus margin) and posts the same way.
+- B14 the agent is healthy but does not stop an idle node: the janitor has seen no approved session for NODE_OVERSTAY_AFTER (boot grace plus idle stop plus margin) and posts the same way.
 
 ### C. Lambda <-> AWS
 - C1 DynamoDB error: 503; transactions leave no half state.
@@ -146,3 +146,5 @@ There is no automatic backstop for a node that does not stop: no uptime cap, bec
 ## Starting the node
 
 Nothing starts the node before an approval. A request that is refused, or that nobody answers, costs no start, and a person who may only ask cannot boot the instance. The janitor starts it for an approved session within its next run (at most a minute, the Scheduler's finest interval), then the boot follows. The price is that a cold start after approval takes that minute longer than a node warmed during the wait would. Starting from the approval handler as well would save it, at the cost of two starters, a start outside the breaker, and EC2 rights on a public Lambda; the janitor stays the only one. The provisioning timeout of 5 minutes has to cover the wait, the boot and the first apply.
+
+Only an approved session keeps a running node up (`Status.NeedsNode`). A request still waiting for approval does not: with no pre-warmed node there is nothing to protect, and counting it would let a stream of unanswered requests hold the node open. The cost is that an idle node about to stop may do so just before an approval arrives and then start again.

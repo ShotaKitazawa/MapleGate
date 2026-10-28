@@ -226,7 +226,7 @@ func (w *world) boot() {
 func (w *world) poweroff() error {
 	if !w.nodeS.down {
 		for _, s := range w.st.Sessions() {
-			if s.Status.Live() && w.now.Before(s.ExpiresAt) {
+			if s.Status.NeedsNode() && w.now.Before(s.ExpiresAt) {
 				w.t.Fatalf("node powered off under live session %s (%s)\n%s", s.ID, s.Status, w.dump())
 			}
 		}

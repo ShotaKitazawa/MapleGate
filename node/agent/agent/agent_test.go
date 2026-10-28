@@ -368,25 +368,14 @@ func TestStopsOnlyAfterIdleGraceAndRecheck(t *testing.T) {
 	assert.Equal(t, "stopping", n.State)
 }
 
-func TestPendingSessionKeepsTheNodeUp(t *testing.T) {
+func TestARequestAwaitingApprovalDoesNotKeepTheNodeUp(t *testing.T) {
 	e := newEnv()
-	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now))
-	e.tick(t)
-	e.advance(14 * time.Minute)
-	e.tick(t)
-	e.advance(14 * time.Minute) // the pending deadline has passed by now
-	e.tick(t)
-	assert.Equal(t, 0, e.poweroff, "an approval can take up to its deadline")
-}
-
-func TestExpiredPendingNoLongerKeepsTheNodeUp(t *testing.T) {
-	e := newEnv()
-	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now))
+	require.NoError(t, e.st.CreateSession(ctx, store.Session{ID: "s1", User: "a", PublicKey: key(2), Status: store.StatusPending, ExpiresAt: e.now.Add(time.Hour)}, e.now))
 	e.advance(16 * time.Minute)
 	e.tick(t)
 	e.advance(16 * time.Minute)
 	e.tick(t)
-	assert.Equal(t, 1, e.poweroff, "the node does not wait on a janitor that may be down")
+	assert.Equal(t, 1, e.poweroff, "an unanswered request must not hold a running node open")
 }
 
 func TestApprovedSessionKeepsTheNodeUp(t *testing.T) {
@@ -408,7 +397,7 @@ func TestLateSessionCancelsTheStop(t *testing.T) {
 	e.advance(2 * time.Minute)
 	// a session appears between the first read and the re-check
 	e.a.Store = &racingStore{flakyStore: e.st, onSecondList: func() {
-		_ = e.st.CreateSession(ctx, store.Session{ID: "s9", User: "z", PublicKey: key(9), Status: store.StatusPending, ExpiresAt: e.now.Add(15 * time.Minute)}, e.now)
+		e.approve(t, "s9", 9)
 	}}
 	e.tick(t)
 	assert.Equal(t, 0, e.poweroff)

@@ -111,6 +111,15 @@ func TestALiveSessionRestartsTheIdleClock(t *testing.T) {
 	assert.Empty(t, e.dc.posts)
 }
 
+func TestARequestAwaitingApprovalDoesNotHoldOffTheOverstayAlert(t *testing.T) {
+	e := newEnv()
+	e.minutes(t, 20, true)
+	e.pending(t, "s1", "alice")
+	e.minutes(t, 20, true)
+
+	assert.NotEmpty(t, e.dc.posts, "the node should have stopped; a request nobody answered is no reason to keep it")
+}
+
 func TestAStoppedNodeRaisesNothingAndForgetsItsHistory(t *testing.T) {
 	e := newEnv()
 	e.nodeUp(t, "boot1")

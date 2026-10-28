@@ -13,7 +13,7 @@ import (
 
 // watch posts to Discord when the node outlives what its own logic should allow. It only tells a human: stopping an
 // instance from here could cut a live session on a wrong guess, and the janitor holds no StopInstances right.
-func (j *Janitor) watch(ctx context.Context, h *store.Health, state ec2ctl.State, node store.Node, live int, now time.Time) {
+func (j *Janitor) watch(ctx context.Context, h *store.Health, state ec2ctl.State, node store.Node, needNode int, now time.Time) {
 	if state == "" {
 		return
 	}
@@ -29,7 +29,7 @@ func (j *Janitor) watch(ctx context.Context, h *store.Health, state ec2ctl.State
 	// A heartbeat older than the boot is a leftover from the previous run, so silence only counts after the grace period.
 	silent := now.Sub(h.RunningSince) > j.Cfg.UnresponsiveAfter && now.Sub(node.LastSeen) > j.Cfg.UnresponsiveAfter
 	switch {
-	case live > 0 || silent:
+	case needNode > 0 || silent:
 		h.IdleSince = time.Time{}
 	case h.IdleSince.IsZero():
 		h.IdleSince = now

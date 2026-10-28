@@ -28,6 +28,10 @@ func (s Status) Terminal() bool {
 // Live sessions keep the node up: someone is waiting for it or using it.
 func (s Status) Live() bool { return s == StatusPending || s == StatusApproved }
 
+// NeedsNode is what keeps the node up and what boots it: only an approved session. A request still waiting for
+// approval must not, or one that is refused or ignored would cost a start or hold a running node open.
+func (s Status) NeedsNode() bool { return s == StatusApproved }
+
 var (
 	ErrNotFound = errors.New("not found")
 	ErrConflict = errors.New("conflict")
