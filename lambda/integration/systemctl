@@ -1,0 +1,3 @@
+#!/bin/sh
+# `systemctl poweroff` on the node ends PID 1, which stops the container the way a halted instance stops.
+[ "$1" = poweroff ] && kill -TERM 1
