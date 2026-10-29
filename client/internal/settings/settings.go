@@ -28,9 +28,18 @@ func Dir() (string, error) {
 	return filepath.Join(base, "MapleGate"), nil
 }
 
+// Shared is a settings file for the whole machine, read when the person has none of their own. The Windows installer
+// runs as an administrator, who need not be the person it is installed for, so it cannot write into their folder.
+var Shared string
+
 func Load(dir string) (Settings, error) {
 	p := filepath.Join(dir, "config.json")
 	b, err := os.ReadFile(p)
+	if errors.Is(err, os.ErrNotExist) && Shared != "" {
+		if sb, serr := os.ReadFile(Shared); serr == nil {
+			p, b, err = Shared, sb, nil
+		}
+	}
 	if errors.Is(err, os.ErrNotExist) {
 		return Settings{}, fmt.Errorf("%s does not exist; ask for the settings file and put it there", p)
 	}

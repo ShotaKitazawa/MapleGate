@@ -45,3 +45,27 @@ func TestLoadReadsTheGameProcessesAndTheyAreOptional(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, without.GameProcesses)
 }
+
+func TestLoadFallsBackToTheSharedFileWhenThePersonHasNone(t *testing.T) {
+	shared := filepath.Join(write(t, `{"start_url":"https://s","region":"r","account_id":"1","api_url":"https://a"}`), "config.json")
+	old := Shared
+	Shared = shared
+	t.Cleanup(func() { Shared = old })
+
+	s, err := Load(t.TempDir())
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://s", s.StartURL)
+}
+
+func TestLoadPrefersThePersonsOwnFile(t *testing.T) {
+	shared := filepath.Join(write(t, `{"start_url":"https://shared","region":"r","account_id":"1","api_url":"https://a"}`), "config.json")
+	old := Shared
+	Shared = shared
+	t.Cleanup(func() { Shared = old })
+
+	s, err := Load(write(t, `{"start_url":"https://own","region":"r","account_id":"1","api_url":"https://a"}`))
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://own", s.StartURL)
+}

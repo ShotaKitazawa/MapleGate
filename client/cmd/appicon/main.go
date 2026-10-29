@@ -1,4 +1,4 @@
-// appicon writes the app's icon as an .iconset folder, which iconutil turns into the .icns the bundle needs.
+// appicon writes the app's icon as an .iconset folder, which iconutil turns into the .icns the bundle needs, or with -ico as the .ico the Windows installer needs.
 package main
 
 import (
@@ -10,8 +10,15 @@ import (
 )
 
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == "-ico" {
+		if err := os.WriteFile(os.Args[2], icon.ICO(icon.App(256), 256), 0o644); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: appicon <dir>.iconset")
+		fmt.Fprintln(os.Stderr, "usage: appicon <dir>.iconset | appicon -ico <file>.ico")
 		os.Exit(2)
 	}
 	dir := os.Args[1]

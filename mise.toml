@@ -40,6 +40,7 @@ run = """
 run = """
   go vet ./... &&
   go vet -tags integration ./lambda/integration/ &&
+  GOOS=windows GOARCH=amd64 go vet ./client/... &&
   shellcheck node/*.sh
 """
 
@@ -57,7 +58,8 @@ run = """
   go build -o /dev/null ./client/cmd/maplegate-cli &&
   go build -o /dev/null ./client/cmd/maplegate &&
   go build -o /dev/null ./client/cmd/maplegated &&
-  GOOS=windows GOARCH=amd64 go build -o /dev/null ./client/cmd/maplegate
+  GOOS=windows GOARCH=amd64 go build -o /dev/null ./client/cmd/maplegate &&
+  GOOS=windows GOARCH=amd64 go build -o /dev/null ./client/cmd/maplegated
 """
 
 [tasks.test-dynamodb]
