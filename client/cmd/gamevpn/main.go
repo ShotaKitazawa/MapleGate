@@ -168,5 +168,5 @@ func runTunnel(ctx context.Context, stdin io.Reader) error {
 		_, _ = io.Copy(io.Discard, io.MultiReader(dec.Buffered(), stdin))
 		cancel()
 	}()
-	return tunnel.Run(ctx, u, func(f string, a ...any) { fmt.Fprintf(os.Stderr, f+"\n", a...) })
+	return tunnel.Run(ctx, u, func(f string, a ...any) { fmt.Fprintf(os.Stderr, f+"\n", a...) }, nil)
 }

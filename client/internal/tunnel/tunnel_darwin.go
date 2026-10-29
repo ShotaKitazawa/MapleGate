@@ -70,7 +70,7 @@ func unpin(endpoint string, gw netcfg.Gateway) {
 }
 
 // Run holds the tunnel up until ctx is done or the device stops, and removes everything it added on the way out.
-func Run(ctx context.Context, u Up, logf func(format string, a ...any)) (err error) {
+func Run(ctx context.Context, u Up, logf func(format string, a ...any), ready func(iface string)) (err error) {
 	if err := u.Validate(); err != nil {
 		return err
 	}
@@ -136,6 +136,9 @@ func Run(ctx context.Context, u Up, logf func(format string, a ...any)) (err err
 		}
 	}
 	logf("tunnel up on %s via %s", iface, firstNonEmpty(gw.Via, gw.Iface))
+	if ready != nil {
+		ready(iface)
+	}
 
 	tick := time.NewTicker(5 * time.Second)
 	defer tick.Stop()
