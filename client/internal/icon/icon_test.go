@@ -2,6 +2,7 @@ package icon
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image/color"
 	"image/png"
 	"testing"
@@ -35,4 +36,15 @@ func TestAppIconIsARedLeafOnNothing(t *testing.T) {
 	assert.Greater(t, c.R, c.G, "red")
 	assert.Equal(t, uint8(0), at(0, 0).A)
 	assert.Equal(t, uint8(0), at(255, 255).A)
+}
+
+func TestICOWrapsThePNGForTheWindowsTray(t *testing.T) {
+	png := Dot(32, color.RGBA{1, 2, 3, 255})
+	ico := ICO(png, 32)
+
+	assert.Equal(t, []byte{0, 0, 1, 0, 1, 0}, ico[:6], "reserved, type icon, one image")
+	assert.Equal(t, byte(32), ico[6], "width")
+	assert.Equal(t, uint32(22), binary.LittleEndian.Uint32(ico[18:22]), "the image starts after the 6 byte header and the 16 byte entry")
+	assert.Equal(t, uint32(len(png)), binary.LittleEndian.Uint32(ico[14:18]))
+	assert.Equal(t, png, ico[22:])
 }

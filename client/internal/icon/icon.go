@@ -3,6 +3,7 @@ package icon
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
 	"image/png"
@@ -120,4 +121,13 @@ func App(size int) []byte {
 		}
 	}
 	return encode(img)
+}
+
+// ICO wraps a PNG of size x size in an icon file, which is what the Windows tray accepts; Windows reads a PNG inside it.
+func ICO(png []byte, size int) []byte {
+	b := make([]byte, 22, 22+len(png))
+	copy(b, []byte{0, 0, 1, 0, 1, 0, byte(size), byte(size), 0, 0, 1, 0, 32, 0})
+	binary.LittleEndian.PutUint32(b[14:], uint32(len(png)))
+	binary.LittleEndian.PutUint32(b[18:], 22)
+	return append(b, png...)
 }
