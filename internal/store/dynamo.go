@@ -235,6 +235,10 @@ func (d *Dynamo) Transition(ctx context.Context, id string, from []Status, to St
 		meta.set("expires_at", t(u.ExpiresAt))
 		meta.set("ttl", t(u.ExpiresAt.Add(24*time.Hour)))
 	}
+	// the text posted at approval no longer says how it ended
+	if to.Terminal() {
+		meta.set("msg_synced", b(false))
+	}
 	meta.names["#st"] = "status"
 	for k, v := range vals {
 		meta.vals[k] = v
@@ -246,6 +250,9 @@ func (d *Dynamo) Transition(ctx context.Context, id string, from []Status, to St
 	work.setStr("close_reason", u.CloseReason)
 	work.setTime("approved_at", u.ApprovedAt)
 	work.setTime("expires_at", u.ExpiresAt)
+	if to.Terminal() {
+		work.set("msg_synced", b(false))
+	}
 
 	items := []types.TransactWriteItem{
 		{Update: &types.Update{

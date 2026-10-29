@@ -132,6 +132,9 @@ func (m *Mem) Transition(_ context.Context, id string, from []Status, to Status,
 			m.active[s.User] = a
 		}
 	}
+	if to.Terminal() {
+		s.MsgSynced, w.MsgSynced = false, false
+	}
 	m.sessions[id], m.work[id] = s, w
 	if to.Terminal() {
 		m.clearActive(s.User, id)

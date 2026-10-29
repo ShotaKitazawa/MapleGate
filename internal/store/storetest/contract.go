@@ -31,19 +31,20 @@ func pending(id, user string) store.Session {
 // Run executes the contract against fresh stores made by mk.
 func Run(t *testing.T, mk func(t *testing.T) Full) {
 	tests := map[string]func(*testing.T, Full){
-		"create writes META and WORK":        createWritesBoth,
-		"create limits":                      createLimits,
-		"transition conflicts":               transitionConflicts,
-		"approve extends the active slot":    approveExtendsActive,
-		"terminal transition frees the slot": terminalFreesSlot,
-		"work mirror follows transitions":    workMirror,
-		"node reports":                       nodeReports,
-		"delete work needs removed_at":       deleteWorkNeedsRemoval,
-		"reapply clears removed_at":          reapplyClearsRemoval,
-		"node ownership":                     nodeOwnership,
-		"ip lease":                           ipLease,
-		"health round trip":                  healthRoundTrip,
-		"message bookkeeping":                messageBookkeeping,
+		"create writes META and WORK":          createWritesBoth,
+		"create limits":                        createLimits,
+		"transition conflicts":                 transitionConflicts,
+		"approve extends the active slot":      approveExtendsActive,
+		"terminal transition frees the slot":   terminalFreesSlot,
+		"work mirror follows transitions":      workMirror,
+		"node reports":                         nodeReports,
+		"delete work needs removed_at":         deleteWorkNeedsRemoval,
+		"reapply clears removed_at":            reapplyClearsRemoval,
+		"node ownership":                       nodeOwnership,
+		"ip lease":                             ipLease,
+		"health round trip":                    healthRoundTrip,
+		"message bookkeeping":                  messageBookkeeping,
+		"ending a session unsyncs its message": endingUnsyncsMessage,
 	}
 	for name, fn := range tests {
 		t.Run(name, func(t *testing.T) { fn(t, mk(t)) })
@@ -227,4 +228,18 @@ func messageBookkeeping(t *testing.T, s Full) {
 	assert.Equal(t, "m1", w.DiscordMessageID)
 	assert.True(t, sess.MsgSynced)
 	assert.True(t, w.MsgSynced)
+}
+
+func endingUnsyncsMessage(t *testing.T, s Full) {
+	require.NoError(t, s.CreateSession(ctx, pending("s1", "alice"), t0))
+	require.NoError(t, s.SetMessageID(ctx, "s1", "m1"))
+	require.NoError(t, s.Transition(ctx, "s1", []store.Status{store.StatusPending}, store.StatusApproved, store.Update{Address: "10.66.0.2/32", ApprovedAt: t0, ExpiresAt: t0.Add(time.Hour)}))
+	require.NoError(t, s.SetMsgSynced(ctx, "s1", true))
+
+	require.NoError(t, s.Transition(ctx, "s1", []store.Status{store.StatusApproved}, store.StatusClosed, store.Update{CloseReason: "user"}))
+
+	sess, _ := s.GetSession(ctx, "s1")
+	w, _ := s.GetWork(ctx, "s1")
+	assert.False(t, sess.MsgSynced)
+	assert.False(t, w.MsgSynced)
 }
