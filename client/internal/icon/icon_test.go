@@ -27,10 +27,12 @@ func TestDotIsFilledAtTheCentreAndEmptyAtTheCorners(t *testing.T) {
 	assert.Equal(t, uint8(0), at(31, 31).A)
 }
 
-func TestAppIconIsALeafOnAColouredSquare(t *testing.T) {
+func TestAppIconIsARedLeafOnNothing(t *testing.T) {
 	_, at := decode(t, App(256))
 
-	assert.Equal(t, uint8(255), at(128, 128).A)
-	assert.Equal(t, uint8(255), at(20, 128).A, "the square, not the leaf")
-	assert.Equal(t, uint8(0), at(0, 0).A, "rounded corner")
+	c := at(128, 128)
+	assert.Equal(t, uint8(255), c.A)
+	assert.Greater(t, c.R, c.G, "red")
+	assert.Equal(t, uint8(0), at(0, 0).A)
+	assert.Equal(t, uint8(0), at(255, 255).A)
 }

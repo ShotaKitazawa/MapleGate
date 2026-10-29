@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 )
 
 // half is the right half of the leaf as (distance from the centre line, y) in a unit square, from the tip down to the stem.
@@ -85,42 +86,38 @@ func Dot(size int, c color.RGBA) []byte {
 	return encode(img)
 }
 
-// App is a white maple leaf on a blue rounded square, for the app bundle. Blue because grey, amber, green and red already mean a state.
+// smooth cuts every corner once, so the tips of the leaf are round instead of sharp.
+func smooth(pts [][2]float64) [][2]float64 {
+	var out [][2]float64
+	for i := range pts {
+		a, b := pts[i], pts[(i+1)%len(pts)]
+		out = append(out,
+			[2]float64{a[0]*0.8 + b[0]*0.2, a[1]*0.8 + b[1]*0.2},
+			[2]float64{a[0]*0.2 + b[0]*0.8, a[1]*0.2 + b[1]*0.8})
+	}
+	return out
+}
+
+func rotate(pts [][2]float64, cx, cy, deg float64) [][2]float64 {
+	sin, cos := math.Sincos(deg * math.Pi / 180)
+	out := make([][2]float64, len(pts))
+	for i, p := range pts {
+		dx, dy := p[0]-cx, p[1]-cy
+		out[i] = [2]float64{cx + dx*cos - dy*sin, cy + dx*sin + dy*cos}
+	}
+	return out
+}
+
+// App is a red maple leaf, tilted, on a transparent square, for the app bundle. It is not on a coloured square: the leaf is the whole icon.
 func App(size int) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	base, white := color.RGBA{45, 105, 215, 255}, color.RGBA{255, 255, 255, 255}
+	red := color.RGBA{205, 30, 40, 255}
 	s := float64(size)
-	r := s * 0.22
-	pts := leaf(s, 0.15)
+	pts := rotate(smooth(leaf(s, 0.1)), s/2, s/2, 28)
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
-			if !roundedInside(float64(x)+0.5, float64(y)+0.5, s, r) {
-				continue
-			}
-			img.SetRGBA(x, y, base)
-			if a := coverage(pts, x, y); a > 0 {
-				img.SetRGBA(x, y, color.RGBA{
-					uint8(float64(base.R)*(1-a) + float64(white.R)*a),
-					uint8(float64(base.G)*(1-a) + float64(white.G)*a),
-					uint8(float64(base.B)*(1-a) + float64(white.B)*a), 255})
-			}
+			blend(img, x, y, red, coverage(pts, x, y))
 		}
 	}
 	return encode(img)
-}
-
-func roundedInside(x, y, s, r float64) bool {
-	cx, cy := x, y
-	if cx < r {
-		cx = r
-	} else if cx > s-r {
-		cx = s - r
-	}
-	if cy < r {
-		cy = r
-	} else if cy > s-r {
-		cy = s - r
-	}
-	dx, dy := x-cx, y-cy
-	return dx*dx+dy*dy <= r*r
 }
