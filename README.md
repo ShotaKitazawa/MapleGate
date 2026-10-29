@@ -3,7 +3,7 @@
 On-demand WireGuard VPN in AWS us-west-2 for the game.
 Access is gated by IAM Identity Center and a Discord approval button.
 
-How the node, the Lambdas and DynamoDB stay consistent (and what happens when each of them breaks) is specified in [docs/lifecycle.md](docs/lifecycle.md).
+How the node, the Lambdas and DynamoDB stay consistent (and what happens when each of them breaks) is specified in [docs/lifecycle.md](docs/lifecycle.md). The client plan is in [docs/client.md](docs/client.md); what has been checked against the real environment, and what has not, is in [docs/e2e.md](docs/e2e.md).
 
 ## Architecture
 
@@ -13,11 +13,16 @@ DynamoDB is the single source of truth; nothing is ever pushed to the node.
 - `discord` Lambda (Function URL): verifies Discord's signature and records approve / deny.
 - `janitor` Lambda (EventBridge Scheduler, every minute): enforces deadlines, starts the node when sessions are waiting, frees IPs, and keeps Discord messages in sync.
 - `vpn-agent` (on the EC2 node): converges WireGuard peers on the work queue in DynamoDB, reports what it applied, and powers the node off when nothing is live.
+- A tunnel user can reach the internet through the node and nothing else: `node/nftables.conf` drops private and link-local destinations (the instance metadata service and the VPC among them) and everything addressed to the node except ping, and the metadata hop limit is 1.
 - Node scripts and the agent binary ship through the artifacts bucket and are fetched on every boot, so changing them never replaces the instance (which would regenerate the server key).
 
 ## Prerequisites (Phase 0, manual)
 
 ### AWS
+
+Administration (Terraform, the console) uses an IAM user in the `admin` group, which has only `AdministratorAccess`, signed in with `aws login`. Friends are Identity Center users and never get more than the `gamevpn-player` permission set. Identity Center's MFA setting covers everyone in the instance and is changed only in the console (Settings, Authentication); it is switched off here because the Discord approval is the second factor.
+
+Run `terraform plan` and read it before every `apply`.
 
 1. Use a Paid-plan account. Free-plan accounts may not be able to enable Organizations / Identity Center; upgrade first if they cannot.
 2. Enable AWS Organizations, then IAM Identity Center (organization instance).
@@ -53,11 +58,21 @@ DynamoDB is the single source of truth; nothing is ever pushed to the node.
 
 The session API is an `AWS_IAM` Function URL: a request without a valid SigV4 signature, or from a principal that may not call it, is rejected with 403 before the Lambda runs. The caller's identity is the Identity Center user name taken from the signed role session (`AWSReservedSSO_*/<user name>`); other roles are refused because they choose their own session name.
 
-Terraform creates the `players` group and the `gamevpn-player` permission set (it can only call the session API) and assigns the group to the account. People are added by hand, which Terraform does not do for you: in the IAM Identity Center console create the user (this sends the invitation e-mail), add it to `players`, and have them register an MFA device at first sign-in. Check members with `aws identitystore list-group-memberships --identity-store-id <id> --group-id <group id>`.
+Terraform creates the `players` group and the `gamevpn-player` permission set (it can only call the session API) and assigns the group to the account. People are added by hand, which Terraform does not do for you: in the IAM Identity Center console create the user (this sends the invitation e-mail) and add it to `players`. Check members with `aws identitystore list-group-memberships --identity-store-id <id> --group-id <group id>`.
 
 Function URL creation makes Lambda add its own public-access statements to the function policy. After switching a URL to `AWS_IAM`, remove the stale ones: `aws lambda remove-permission --function-name gamevpn-session --statement-id FunctionURLAllowPublicAccess` and the same for `FunctionURLAllowInvokeAction`.
 
-## Phase 3 manual check
+## The client (macOS)
+
+`mise run build` produces `build/gamevpn`. Put the deployment's settings (none of them is secret) in `~/Library/Application Support/gamevpn/config.json`:
+
+```
+{"start_url": "<Identity Center start URL>", "region": "us-west-2", "account_id": "<account>", "role_name": "gamevpn-player", "api_url": "<session_api_url output>"}
+```
+
+`build/gamevpn up` asks for the administrator password once (the tunnel needs root), signs in in the browser the first time only, asks for a session, waits for the Discord approval, and brings up the tunnel. Ctrl-C closes the session and removes the routes. `gamevpn login` only signs in. All traffic goes through the node, IPv6 included (the node drops it). Windows is not implemented yet.
+
+## Debugging with the CLI (no tunnel)
 
 ```
 aws sso login --profile <your profile>
@@ -70,11 +85,7 @@ Clients must treat only `denied`, `failed`, `closed` and `expired` as the end of
 
 The node has no SSH and no inbound port besides WireGuard. For the first boots, use Session Manager (`aws ssm start-session --target <instance id>`) or `aws ec2 get-console-output` for the cloud-init log; once the node is proven, drop the permission with `-var node_session_manager=false`.
 
-Live checks worth doing once (they are not covered by tests):
-
-- cut the node's egress (remove the security group egress rule) and confirm peers stay up, new approvals fail after 5 minutes, and everything recovers afterwards;
-- narrow the node's DynamoDB policy and confirm the agent stops reporting while the janitor stops restarting a node that never comes up;
-- stop the agent (`systemctl stop vpn-agent`) and confirm that Discord gets a "has not reported" alert after about 10 minutes, then stop the node by hand.
+The live checks still open are the Todo list in [docs/e2e.md](docs/e2e.md).
 
 ## Development
 
