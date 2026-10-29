@@ -49,3 +49,12 @@ The privileged half becomes a daemon, `gamevpnd` (a LaunchDaemon on macOS), and 
 - **The UI closes the session** at the server (it holds the credentials; the daemon never does). Taking the tunnel down because nobody looks does not close the session; the node closes it as `idle` within about 10 minutes.
 - **Tray**: one Go code base for both systems (`fyne.io/systray`), because maintaining a native UI per system is more than this project can carry. States: signed out, waiting for approval, connected (with the time left), error.
 - **Installers**: a macOS pkg that installs the two binaries, loads the LaunchDaemon and starts the tray at login; the Windows installer follows the macOS one. Neither is signed or notarized, so the guide for friends says how to get past Gatekeeper and SmartScreen.
+
+## Remaining work (macOS), found on the first run on a machine
+
+- **Quit disconnects.** Quit from the menu takes the tunnel down, closes the session, then exits. A crash still leaves the tunnel to the daemon's 15 minute rule, so the player is not cut in the middle of a game; only a deliberate Quit ends it.
+- **A way back after Quit.** The tray is a bare binary, so nothing in Finder or Spotlight starts it again. Ship a small `MapleGate.app` in `/Applications` whose only job is to start the tray (`launchctl kickstart`).
+- **Time left in the menu** while connected, and a signed out state with a sign out item.
+- **Say so when the browser is needed.** While waiting for sign in, the menu should tell the person to look at the browser.
+- **Route watcher.** A failed move of the node's route is retried silently; after repeated failures it should be shown or end the tunnel. Check what a sleep and wake does to the WireGuard socket.
+- **Windows**: tunnel (Wintun, routes), service and named pipe, installer, guide.
