@@ -65,6 +65,10 @@ A2 and A3 must be done before release.
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
+| O1 | The notifier posts to the approval channel | invoking `gamevpn-notify` with a test SNS event (done, the function returned 200) puts the test message in Discord | you | safe |
+| O2 | A test budget with a tiny threshold reaches Discord (F3) | lower `monthly_budget_usd` to 0.01 for a moment, a notice appears, put it back | both | reversible |
+| O3 | The janitor alarm fires and recovers | disable the schedule for 6 minutes: `gamevpn-janitor-silent` posts ALARM, then recovered after enabling it | both | reversible |
+| O4 | After a session that was approved ends, its Discord message says how it ended | the message changes from approved to closed within about a minute of Disconnect | you | safe |
 
 ### The game
 
