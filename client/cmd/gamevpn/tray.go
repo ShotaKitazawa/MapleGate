@@ -78,6 +78,7 @@ func tray() error {
 		disconnect.Disable()
 		systray.AddSeparator()
 		signOut := systray.AddMenuItem("Sign out", "")
+		showLog := systray.AddMenuItem("Show log", "")
 		systray.AddSeparator()
 		quit := systray.AddMenuItem("Quit", "")
 
@@ -129,6 +130,8 @@ func tray() error {
 					a.Connect()
 				case <-disconnect.ClickedCh:
 					a.Disconnect()
+				case <-showLog.ClickedCh:
+					_ = exec.Command("open", "-a", "Console", "/var/log/gamevpnd.log").Run()
 				case <-signOut.ClickedCh:
 					a.SignOut()
 				case <-quit.ClickedCh:

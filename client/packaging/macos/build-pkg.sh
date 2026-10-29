@@ -10,7 +10,7 @@ VERSION=${VERSION:-0.1.0}
 
 rm -rf "$OUT"
 mkdir -p "$OUT/root/usr/local/bin" "$OUT/root/usr/local/share/gamevpn" \
-  "$OUT/root/Library/LaunchDaemons" "$OUT/root/Library/LaunchAgents" "$OUT/root/Applications/MapleGate.app/Contents/MacOS" "$OUT/arm64" "$OUT/amd64"
+  "$OUT/root/Library/LaunchDaemons" "$OUT/root/Library/LaunchAgents" "$OUT/root/Applications/MapleGate.app/Contents/MacOS" "$OUT/root/etc/newsyslog.d" "$OUT/arm64" "$OUT/amd64"
 
 # the tray app uses cgo, so each architecture is built by clang for that architecture
 for arch in arm64 amd64; do
@@ -27,6 +27,8 @@ done
 
 install -m 755 "$ROOT/client/packaging/macos/uninstall.sh" "$OUT/root/usr/local/share/gamevpn/uninstall.sh"
 install -m 644 "$CONF" "$OUT/root/usr/local/share/gamevpn/config.json"
+# a flood of errors from the tunnel must not fill the disk
+install -m 644 "$ROOT/client/packaging/macos/gamevpnd.newsyslog.conf" "$OUT/root/etc/newsyslog.d/gamevpnd.conf"
 install -m 644 "$ROOT/client/packaging/macos/com.maplegate.gamevpnd.plist" "$OUT/root/Library/LaunchDaemons/"
 install -m 644 "$ROOT/client/packaging/macos/com.maplegate.gamevpn.plist" "$OUT/root/Library/LaunchAgents/"
 
