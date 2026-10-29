@@ -32,3 +32,11 @@ func TestReportHasEverySectionEvenWhenOneIsEmpty(t *testing.T) {
 	}
 	assert.True(t, strings.HasSuffix(out, "\n"))
 }
+
+func TestRoutesDropOtherDevicesOnTheLAN(t *testing.T) {
+	in := "default            192.168.0.1        UGScg                 en0\n" +
+		"192.168.0.11       70:85:c2:80:79:28  UHLWIi                en0   1031\n" +
+		"128.0/1            utun8              USc                 utun8\n"
+
+	assert.Equal(t, "default            192.168.0.1        UGScg                 en0\n128.0/1            utun8              USc                 utun8", Routes(in))
+}

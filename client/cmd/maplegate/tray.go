@@ -194,7 +194,7 @@ func diagnostics(s settings.Settings, signedIn bool, menu string, events *diag.E
 		Menu:     fmt.Sprintf("%s (signed in: %t)", menu, signedIn),
 		Daemon:   daemon,
 		Settings: string(conf),
-		Routes:   diag.Tail(output("netstat", "-rn", "-f", "inet"), 25),
+		Routes:   diag.Routes(output("netstat", "-rn", "-f", "inet")) + "\n" + diag.Routes(output("netstat", "-rn", "-f", "inet6")),
 		Log:      diag.Tail(readFile("/var/log/maplegated.log"), 80),
 		Events:   events.Lines(),
 	})

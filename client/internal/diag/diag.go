@@ -67,3 +67,19 @@ func (e *Events) Lines() []string {
 	defer e.mu.Unlock()
 	return append([]string(nil), e.lines...)
 }
+
+// Routes keeps the first 40 lines and drops the neighbour entries (flags L and W): they carry the MAC addresses of other devices on the person's network, and say nothing about the tunnel.
+func Routes(s string) string {
+	var keep []string
+	for _, l := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+		f := strings.Fields(l)
+		if len(f) >= 3 && strings.Contains(f[2], "L") && strings.Contains(f[2], "W") {
+			continue
+		}
+		keep = append(keep, l)
+	}
+	if len(keep) > 40 {
+		keep = keep[:40]
+	}
+	return strings.Join(keep, "\n")
+}
