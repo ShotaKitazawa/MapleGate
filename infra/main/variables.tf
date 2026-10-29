@@ -74,3 +74,15 @@ variable "player_session_duration" {
   type    = string
   default = "PT1H"
 }
+
+variable "monthly_budget_usd" {
+  description = "Monthly cost of the whole account that raises a notice"
+  type        = number
+  default     = 10
+}
+
+variable "alert_email" {
+  description = "Also e-mail the alerts here; empty means Discord only. Cost notices should not depend on the Discord path alone."
+  type        = string
+  default     = ""
+}
