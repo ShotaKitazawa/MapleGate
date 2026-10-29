@@ -5,8 +5,9 @@ APP_ID=${1:?usage: register-discord-command.sh <application id>}
 REGION=${AWS_REGION:-us-west-2}
 PREFIX=${PARAM_PREFIX:-/gamevpn}
 
-aws ssm get-parameter --region "$REGION" --with-decryption --name "$PREFIX/discord/bot_token" --query Parameter.Value --output text |
-	sed 's/^/Authorization: Bot /' |
+TOKEN=$(aws ssm get-parameter --region "$REGION" --with-decryption --name "$PREFIX/discord/bot_token" --query Parameter.Value --output text)
+
+printf 'Authorization: Bot %s\n' "$TOKEN" |
 	curl -sS -f -X POST "https://discord.com/api/v10/applications/$APP_ID/commands" \
 		-H @- -H 'Content-Type: application/json' \
 		-d '{"name":"download","description":"Get a link to the MapleGate installer","type":1}' \
