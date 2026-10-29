@@ -18,7 +18,7 @@ for arch in arm64 amd64; do
   [ "$arch" = amd64 ] && clang_arch=x86_64
   for cmd in maplegate maplegated; do
     (cd "$ROOT" && CGO_ENABLED=1 GOOS=darwin GOARCH=$arch CC="clang -arch $clang_arch" \
-      go build -trimpath -ldflags="-s -w" -o "$OUT/$arch/$cmd" "./client/cmd/$cmd")
+      go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o "$OUT/$arch/$cmd" "./client/cmd/$cmd")
   done
 done
 for cmd in maplegate maplegated; do

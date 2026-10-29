@@ -20,7 +20,7 @@ Colours: grey, not connected; amber, signing in or waiting for approval; green, 
 
 ## If something is wrong
 
-- Choose **Show log** in the menu and send the person who runs the server a screenshot of the last lines.
+- Choose **Copy diagnostics** in the menu, then paste into your message to the person who runs the server. It holds the menu text, the tunnel's state, your routes and the last lines of the log, and no password or key.
 - Red with "denied": the approval was refused. Ask.
 - Red with "expired": nobody approved in 15 minutes. Connect again and tell them.
 - Nothing happens on Connect: choose Quit in the menu (this also disconnects) and open **MapleGate** again from Applications or Spotlight. If the menu says the VPN service is not running, restart the Mac once.

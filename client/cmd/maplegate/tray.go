@@ -2,19 +2,24 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 	"time"
 
 	"fyne.io/systray"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/api"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/app"
+	"github.com/ShotaKitazawa/MapleGate/client/internal/diag"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/ipc"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/session"
+	"github.com/ShotaKitazawa/MapleGate/client/internal/settings"
 )
 
 const daemonSocket = "/var/run/maplegated.sock"
@@ -48,9 +53,26 @@ func notify(title, msg string) {
 	_ = exec.Command("osascript", "-e", script).Run()
 }
 
+// output is what a command prints, or why it could not run; a diagnostic must not stop at the first thing that fails.
+func output(name string, args ...string) string {
+	out, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil {
+		return fmt.Sprintf("%s: %v", name, err)
+	}
+	return string(out)
+}
+
+func copyToClipboard(text string) error {
+	c := exec.Command("pbcopy")
+	c.Stdin = strings.NewReader(text)
+	return c.Run()
+}
+
 func tray() error {
 	var a *app.App
+	events := &diag.Events{Max: 60}
 	s, l, err := newLogin(func(m string) {
+		events.Add(m)
 		if a != nil {
 			a.Say(m)
 		}
@@ -58,10 +80,13 @@ func tray() error {
 	if err != nil {
 		return err
 	}
-	l.Prompt = func(_, code string) { a.Say("Finish signing in in your browser (code " + code + ")") }
+	l.Prompt = func(_, code string) {
+		events.Add("sign in code " + code)
+		a.Say("Finish signing in in your browser (code " + code + ")")
+	}
 	client := &api.Client{Base: s.APIURL, Region: s.Region, Creds: l.Provider()}
 	a = &app.App{
-		Sessions: &session.Runner{API: client, Progress: func(m string) { a.Say(m) }},
+		Sessions: &session.Runner{API: client, Progress: func(m string) { events.Add(m); a.Say(m) }},
 		Daemon:   ipc.Client{Path: daemonSocket},
 		Wait:     10 * time.Minute,
 		Poll:     5 * time.Second,
@@ -79,6 +104,7 @@ func tray() error {
 		systray.AddSeparator()
 		signOut := systray.AddMenuItem("Sign out", "")
 		showLog := systray.AddMenuItem("Show log", "")
+		copyDiag := systray.AddMenuItem("Copy diagnostics", "")
 		systray.AddSeparator()
 		quit := systray.AddMenuItem("Quit", "")
 
@@ -92,6 +118,7 @@ func tray() error {
 			return st.Label(time.Now())
 		}
 		a.OnChange = func(st app.State) {
+			events.Add(st.Phase + ": " + st.Text)
 			systray.SetIcon(icons[st.Phase])
 			status.SetTitle(label(st))
 			if l.SignedIn() {
@@ -132,6 +159,12 @@ func tray() error {
 					a.Disconnect()
 				case <-showLog.ClickedCh:
 					_ = exec.Command("open", "-a", "Console", "/var/log/maplegated.log").Run()
+				case <-copyDiag.ClickedCh:
+					if err := copyToClipboard(diagnostics(s, l.SignedIn(), label(a.State()), events)); err != nil {
+						notify("MapleGate", "Could not copy: "+err.Error())
+					} else {
+						notify("MapleGate", "Diagnostics copied. Paste them into your message.")
+					}
 				case <-signOut.ClickedCh:
 					a.SignOut()
 				case <-quit.ClickedCh:
@@ -145,4 +178,32 @@ func tray() error {
 		}()
 	}, func() { fmt.Fprintln(os.Stderr, "bye") })
 	return nil
+}
+
+func diagnostics(s settings.Settings, signedIn bool, menu string, events *diag.Events) string {
+	var daemon string
+	if st, err := (ipc.Client{Path: daemonSocket}).Do(ipc.Request{Op: "status"}); err != nil {
+		daemon = "unreachable: " + err.Error()
+	} else {
+		daemon = fmt.Sprintf("state=%s iface=%s session=%s since=%s error=%q", st.State, st.Iface, st.SessionID, st.Since.Format(time.RFC3339), st.Error)
+	}
+	conf, _ := json.MarshalIndent(s, "", "  ")
+	return diag.Build(diag.Input{
+		Version:  version,
+		System:   strings.TrimSpace(output("sw_vers", "-productVersion")) + " " + runtime.GOARCH,
+		Menu:     fmt.Sprintf("%s (signed in: %t)", menu, signedIn),
+		Daemon:   daemon,
+		Settings: string(conf),
+		Routes:   diag.Tail(output("netstat", "-rn", "-f", "inet"), 25),
+		Log:      diag.Tail(readFile("/var/log/maplegated.log"), 80),
+		Events:   events.Lines(),
+	})
+}
+
+func readFile(p string) string {
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
 }

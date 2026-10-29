@@ -99,6 +99,7 @@ Build with `client/packaging/macos/build-pkg.sh <settings file>`; install on a m
 | P3 | Quit the app while connected | the tunnel is taken down and the session closed before the dot disappears; `curl ifconfig.io` shows your own address | you |
 | P3b | Open MapleGate from Spotlight after a Quit | the dot comes back; opening it while it runs starts no second one | you |
 | P4 | Kill the app (`kill -9`) | the tunnel stays up and launchd starts the app again, which shows Connected with the time it has been up; Quit does not bring it back | you |
+| P8 | Menu, Copy diagnostics, then paste into a text editor | the text has the version, the macOS version, the tunnel state, the routes, the daemon log and the recent events, and no token or key | you |
 | P4b | Stop the app for good (`launchctl bootout gui/$(id -u)/com.maplegate.tray`, then `kill -9`) | the tunnel goes down after 15 minutes; the node closes the session as `idle` | you |
 | P5 | Disconnect from the menu | session `closed`, no route left, `curl ifconfig.io` shows your own address | you |
 | P6 | The daemon refuses another user | a second macOS account (or `sudo -u`) gets "not allowed" from the socket | you |
