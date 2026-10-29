@@ -63,6 +63,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
 | O2 | A test budget with a tiny threshold sends its mail (F3) | lower `monthly_budget_usd` to 0.01 for a moment, a mail arrives, put it back | both | reversible. Lowered at 2026-10-29 20:41 JST; **put it back to 10 when the mail has arrived** |
+| O5 | Port 25 from the tunnel is refused, so the node cannot send spam | after the node picks up the new setup: `nc -vz -w5 <any mail server> 25` through the tunnel is reset at once, and port 587 still connects | both | needs the setup delivered and the node restarted |
 
 ### The game
 
