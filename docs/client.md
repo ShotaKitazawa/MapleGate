@@ -52,5 +52,5 @@ The privileged half becomes a daemon, `gamevpnd` (a LaunchDaemon on macOS), and 
 
 ## Remaining work (macOS), found on the first run on a machine
 
-- **Sleep and wake.** Check what it does to the WireGuard socket (M8).
+- **Sleep and wake.** The orphan timer cannot fire because of a sleep: it compares `time.Now()` readings, which carry the monotonic clock, and that clock stands still while the Mac sleeps. The node's 15 min idle stop does fire, so a long sleep ends the session and the tray shows "The session ended" on wake; the person connects again. What is left to check is the WireGuard socket and the route after wake (M8).
 - **Windows**: tunnel (Wintun, routes), service and named pipe, installer, guide.
