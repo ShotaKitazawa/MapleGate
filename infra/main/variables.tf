@@ -81,7 +81,7 @@ variable "monthly_budget_usd" {
   default     = 10
 }
 
-variable "alert_email" {
-  description = "Where cost and janitor alerts are e-mailed; the subscription must be confirmed from the mail it sends"
+variable "budget_email" {
+  description = "Where the monthly budget notices are e-mailed"
   type        = string
 }
