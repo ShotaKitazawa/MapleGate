@@ -59,8 +59,12 @@ func main() {
 		Discord: discord.NewREST(func(ctx context.Context) (string, error) { return params.Get(ctx, "discord/bot_token") }, params.Invalidate),
 		Invoker: selfInvoker{client: lambdasvc.NewFromConfig(awsCfg), name: os.Getenv("AWS_LAMBDA_FUNCTION_NAME")},
 		Now:     time.Now,
-		DownloadURL: func(ctx context.Context) (string, error) {
-			return presign.GetURL(ctx, awsCfg.Credentials, awsCfg.Region, cfg.DistBucket, cfg.DistKey, 15*time.Minute, time.Now())
+		DownloadURL: func(ctx context.Context, platform string) (string, error) {
+			key := map[string]string{"macos": cfg.DistKeyMacOS, "windows": cfg.DistKeyWindows}[platform]
+			if key == "" {
+				return "", nil
+			}
+			return presign.GetURL(ctx, awsCfg.Credentials, awsCfg.Region, cfg.DistBucket, key, 15*time.Minute, time.Now())
 		},
 		ChannelID: func(ctx context.Context) (string, error) {
 			return params.Get(ctx, "discord/channel_id")

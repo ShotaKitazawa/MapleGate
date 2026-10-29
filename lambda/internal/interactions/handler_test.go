@@ -120,8 +120,13 @@ func commandBody(name string) string {
 
 func TestDownloadCommandAnswersOnlyTheAskerWithALink(t *testing.T) {
 	e := newEnv(t)
-	e.h.DownloadURL = func(context.Context) (string, error) { return "https://example.test/pkg?sig=x", nil }
-	r := e.h.Handle(context.Background(), e.signed(commandBody("download")))
+	var asked string
+	e.h.DownloadURL = func(_ context.Context, p string) (string, error) {
+		asked = p
+		return "https://example.test/pkg?sig=x", nil
+	}
+	r := e.h.Handle(context.Background(), e.signed(commandBody("download-macos")))
+	assert.Equal(t, "macos", asked)
 
 	assert.Equal(t, 200, r.StatusCode)
 	var out struct {
@@ -134,17 +139,26 @@ func TestDownloadCommandAnswersOnlyTheAskerWithALink(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(r.Body), &out))
 	assert.Equal(t, 4, out.Type)
 	assert.Equal(t, 64, out.Data.Flags, "ephemeral: the link is not shown to the channel")
-	assert.Contains(t, out.Data.Content, "https://example.test/pkg?sig=x")
+	assert.Contains(t, out.Data.Content, "[Download link](https://example.test/pkg?sig=x)", "the long signed URL stays out of sight")
 }
 
 func TestDownloadCommandWhenTheLinkCannotBeMade(t *testing.T) {
 	e := newEnv(t)
-	e.h.DownloadURL = func(context.Context) (string, error) { return "", errors.New("boom") }
-	r := e.h.Handle(context.Background(), e.signed(commandBody("download")))
+	e.h.DownloadURL = func(context.Context, string) (string, error) { return "", errors.New("boom") }
+	r := e.h.Handle(context.Background(), e.signed(commandBody("download-macos")))
 
 	assert.Equal(t, 200, r.StatusCode, "Discord shows a non-2xx as a generic failure; say what happened instead")
 	assert.NotContains(t, r.Body, "boom")
 	assert.Contains(t, r.Body, `"flags":64`)
+}
+
+func TestDownloadCommandForAPlatformWithoutInstaller(t *testing.T) {
+	e := newEnv(t)
+	e.h.DownloadURL = func(context.Context, string) (string, error) { return "", nil }
+	r := e.h.Handle(context.Background(), e.signed(commandBody("download-windows")))
+
+	assert.Contains(t, r.Body, "no installer for windows")
+	assert.NotContains(t, r.Body, "Download link")
 }
 
 func TestUnknownCommand(t *testing.T) {

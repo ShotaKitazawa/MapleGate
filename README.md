@@ -80,14 +80,14 @@ Function URL creation makes Lambda add its own public-access statements to the f
 
 ## Handing out the installer
 
-Put the pkg in the artifacts bucket once per release, and register the command once:
+Put the pkg in the artifacts bucket once per release, and register the commands once (this replaces every other command of the app):
 
 ```
 aws s3 cp build/MapleGate.pkg s3://<artifacts bucket>/dist/MapleGate.pkg
 scripts/register-discord-command.sh <application id>
 ```
 
-A friend types `/download` in the server and gets a link that only they can see and that works for 15 minutes. The discord Lambda signs it with its own role, which may read `dist/` and nothing else in the bucket. The pkg holds the deployment's non-secret settings, so anyone in the server can get it; remove the command or the bot's access to the channel to stop that.
+A friend types `/download-macos` (or `/download-windows`, which answers "no installer yet" until `DIST_KEY_WINDOWS` is set) in the server and gets a link that only they can see and that works for 15 minutes. The discord Lambda signs it with its own role, which may read `dist/` and nothing else in the bucket. The pkg holds the deployment's non-secret settings, so anyone in the server can get it; remove the command or the bot's access to the channel to stop that.
 
 ## Debugging with the CLI (no tunnel)
 

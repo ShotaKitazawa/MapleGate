@@ -29,7 +29,8 @@ type Config struct {
 	AllowedIPs        []string
 	Keepalive         int
 	DistBucket        string
-	DistKey           string
+	DistKeyMacOS      string
+	DistKeyWindows    string
 }
 
 func Load() (Config, error) {
@@ -54,7 +55,8 @@ func Load() (Config, error) {
 		AllowedIPs:        strings.Split(envOr("ALLOWED_IPS", "0.0.0.0/0,::/0"), ","),
 		Keepalive:         envInt("PERSISTENT_KEEPALIVE", 25),
 		DistBucket:        os.Getenv("DIST_BUCKET"),
-		DistKey:           envOr("DIST_KEY", "dist/MapleGate.pkg"),
+		DistKeyMacOS:      envOr("DIST_KEY_MACOS", "dist/MapleGate.pkg"),
+		DistKeyWindows:    os.Getenv("DIST_KEY_WINDOWS"),
 	}
 	if c.TableName == "" || c.InstanceID == "" {
 		return c, fmt.Errorf("TABLE_NAME and INSTANCE_ID are required")

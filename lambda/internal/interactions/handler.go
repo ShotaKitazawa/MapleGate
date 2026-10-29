@@ -43,8 +43,8 @@ type Handler struct {
 	Invoker   Invoker
 	ChannelID func(ctx context.Context) (string, error)
 	PublicKey func(ctx context.Context) (ed25519.PublicKey, error)
-	// DownloadURL returns a short-lived link to the installer.
-	DownloadURL func(ctx context.Context) (string, error)
+	// DownloadURL returns a short-lived link to the installer for a platform, or "" when there is none yet.
+	DownloadURL func(ctx context.Context, platform string) (string, error)
 	Now         func() time.Time
 }
 
@@ -74,10 +74,11 @@ func (h *Handler) Handle(ctx context.Context, req events.LambdaFunctionURLReques
 	case discord.InteractionPing:
 		return resp(http.StatusOK, map[string]int{"type": discord.ResponsePong})
 	case discord.InteractionCommand:
-		if in.Data.Name != "download" {
+		platform, ok := strings.CutPrefix(in.Data.Name, "download-")
+		if !ok || (platform != "macos" && platform != "windows") {
 			return resp(http.StatusBadRequest, nil)
 		}
-		return h.download(ctx)
+		return h.download(ctx, platform)
 	case discord.InteractionComponent:
 		action, sid, ok := strings.Cut(in.Data.CustomID, ":")
 		if !ok || (action != "approve" && action != "deny") || sid == "" {
@@ -96,13 +97,16 @@ func (h *Handler) Handle(ctx context.Context, req events.LambdaFunctionURLReques
 	return resp(http.StatusBadRequest, nil)
 }
 
-func (h *Handler) download(ctx context.Context) events.LambdaFunctionURLResponse {
+func (h *Handler) download(ctx context.Context, platform string) events.LambdaFunctionURLResponse {
 	content := "The link could not be made. Ask the person who runs the server."
 	if h.DownloadURL != nil {
-		if u, err := h.DownloadURL(ctx); err != nil {
+		switch u, err := h.DownloadURL(ctx, platform); {
+		case err != nil:
 			slog.Error("download link", "err", err)
-		} else {
-			content = "Installer (the link works for 15 minutes; see the guide for how to open it):\n" + u
+		case u == "":
+			content = "There is no installer for " + platform + " yet."
+		default:
+			content = "[Download link](" + u + ") (works for 15 minutes; see the guide for how to open it)"
 		}
 	}
 	return resp(http.StatusOK, map[string]any{
