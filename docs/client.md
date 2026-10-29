@@ -1,6 +1,6 @@
 # Client
 
-The purpose: friends play the game with the game's traffic going through the us-west-2 node, without knowing AWS. The server side is done and checked (`docs/e2e.md`); this is the plan for the client.
+The purpose: friends play the game with the game's traffic going through the us-west-2 node, without knowing AWS. The server side is done and checked (`docs/e2e.md`); this is the design of the client and what is left of it.
 
 ## Phases
 
@@ -8,7 +8,7 @@ The purpose: friends play the game with the game's traffic going through the us-
 |---|---|---|
 | 4 | The client core, driven from a terminal: sign in, ask, wait for approval, bring the tunnel up, take it down and leave no routes behind | yes, macOS first; Windows follows with the same shape |
 | 5 | The privileged daemon and its IPC, the tray UI, the installers, a one page guide for friends | yes |
-| 6 | Operations: Budgets, error notices, a janitor liveness alarm | no |
+| 6 | Operations: a monthly Budget e-mailed by AWS (done). The janitor posts node problems to Discord itself, and there is no other alarm: the node stops itself when idle, so a dead janitor costs availability, not money | no |
 
 Why the cut is between 4 and 5: the risky parts are the tunnel, the routes, recovery after a Wi-Fi change and IPv6 leaks, and all of them can be checked from a terminal. The UI and the installers are a thin layer over behaviour that is already settled, so they come after.
 
@@ -23,7 +23,7 @@ The daemon and its IPC exist only so that an unprivileged tray UI can ask for so
 ## Decisions
 
 - **Sign in**: the client does the Identity Center device flow itself (RegisterClient, StartDeviceAuthorization, CreateToken, GetRoleCredentials) so friends need no AWS CLI. The browser opens only when there is no valid token. Role credentials are fetched again before they expire, so a long session never asks again.
-- **Settings**: start URL, region, account, role name and API URL are in a small file, `~/Library/Application Support/MapleGate/config.json` on macOS, with the values of this deployment as defaults. None of them is secret.
+- **Settings**: start URL, region, account, role name and API URL are in a small file, `~/Library/Application Support/MapleGate/config.json` on macOS. The pkg places it, so a friend writes nothing; only the role name has a default. None of them is secret.
 - **Tunnel**: wireguard-go in the process (utun), configured over UAPI. Not a dependency on a separate WireGuard install.
 - **Routes**: `0.0.0.0/1`, `128.0.0.0/1`, `::/1` and `8000::/1` into the tunnel (so the default route is untouched and IPv6 cannot leak around it), and the node's endpoint address kept on the original gateway. They are removed on every way out, including a crash of the parent.
 - **Session**: the unprivileged process polls the session while the tunnel is up and ends the tunnel only on a terminal status. A failed poll never ends it.
@@ -48,9 +48,11 @@ The privileged half becomes a daemon, `maplegated` (a LaunchDaemon on macOS), an
 - **A tunnel nobody looks after is taken down.** The UI calls `status` every few seconds, and that is also the heartbeat. After 15 minutes without a call the daemon takes the tunnel down. Without this rule a dead UI would leave the tunnel up, its handshakes would keep the session extended, and the node would never stop. The window is long enough for a restart and short enough to bound the cost. launchd restarts a crashed app (not one that quit), and the new one adopts the tunnel.
 - **The UI closes the session** at the server (it holds the credentials; the daemon never does). Taking the tunnel down because nobody looks does not close the session; the node closes it as `idle` within about 10 minutes.
 - **Tray**: one Go code base for both systems (`fyne.io/systray`), because maintaining a native UI per system is more than this project can carry. States: signed out, waiting for approval, connected (with how long it has been up, not the time left: the session is extended while it is in use, so the expiry is always about the same), error.
-- **Installers**: a macOS pkg that installs the two binaries, loads the LaunchDaemon and starts the tray at login; the Windows installer follows the macOS one. Neither is signed or notarized, so the guide for friends says how to get past Gatekeeper and SmartScreen.
+- **Menu**: a coloured dot for the state (grey, amber, green, red), Connect, Disconnect, Sign out, Show log, Copy diagnostics (what a friend pastes into a message when something is wrong), Quit (which disconnects first). The app icon is a maple leaf; the dot stays a dot because a state reads fastest that way.
+- **Installers**: a macOS pkg that installs the two binaries, `MapleGate.app` (a launcher, so Spotlight finds it), log rotation, and loads the LaunchDaemon and the LaunchAgent; a second pkg uninstalls. The Windows installer follows the macOS one. Neither is signed or notarized, so the guide for friends says how to get past Gatekeeper and SmartScreen.
 
 ## Remaining work (macOS), found on the first run on a machine
 
 - **Sleep and wake.** The orphan timer cannot fire because of a sleep: it compares `time.Now()` readings, which carry the monotonic clock, and that clock stands still while the Mac sleeps. The node's 15 min idle stop does fire, so a long sleep ends the session and the tray shows "The session ended" on wake; the person connects again. What is left to check is the WireGuard socket and the route after wake (M8).
-- **Windows**: tunnel (Wintun, routes), service and named pipe, installer, guide.
+- **Disconnect when the game is not running** (F5, F8 in `docs/e2e.md`). A forgotten tunnel is never closed today: its keepalive counts as use, the session is extended, and the node stays up (the janitor only posts a notice to Discord, which is missed). The client will look for the game's process; ten minutes without it, a dialog asks, and two minutes without an answer it disconnects. While the game runs nothing ends the session. The process names come from observing the game on each OS.
+- **Windows**: tunnel (Wintun, routes), service and named pipe, installer, guide, and F8 on Windows.

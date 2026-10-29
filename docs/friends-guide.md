@@ -14,7 +14,7 @@ This sends your game's traffic through a server in the US west. It only runs whi
 1. Click the dot, then **Connect**. A browser opens the first time: sign in with the account from the invitation. Later it does not open again.
 2. Wait. The person who runs the server gets a message and presses Approve. The menu says what it is waiting for.
 3. When the dot is green and a notice says Connected, start the game.
-4. When you are done, click the dot, then **Disconnect**. If you forget, the server notices after about 10 minutes of no use and stops by itself.
+4. When you are done, click the dot, then **Disconnect**. Please always disconnect: while you stay connected the server keeps running and counts everything you do as use.
 
 Colours: grey, not connected; amber, signing in or waiting for approval; green, connected; red, something went wrong (the menu says what).
 

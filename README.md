@@ -13,7 +13,7 @@ DynamoDB is the single source of truth; nothing is ever pushed to the node.
 - `discord` Lambda (Function URL): verifies Discord's signature and records approve / deny.
 - `janitor` Lambda (EventBridge Scheduler, every minute): enforces deadlines, starts the node when sessions are waiting, frees IPs, and keeps Discord messages in sync.
 - `vpn-agent` (on the EC2 node): converges WireGuard peers on the work queue in DynamoDB, reports what it applied, and powers the node off when nothing is live.
-- A tunnel user can reach the internet through the node and nothing else: `node/nftables.conf` drops private and link-local destinations (the instance metadata service and the VPC among them) and everything addressed to the node except ping, and the metadata hop limit is 1.
+- A tunnel user can reach the internet through the node and nothing else: `node/nftables.conf` drops private and link-local destinations (the instance metadata service and the VPC among them) and everything addressed to the node except ping, and the metadata hop limit is 1. It also refuses port 25 (no spam from the node's address) and holds each peer to about 10 Mbps in each direction, so one friend's download does not take the node from the others.
 - Node scripts and the agent binary ship through the artifacts bucket and are fetched on every boot, so changing them never replaces the instance (which would regenerate the server key).
 
 ## Prerequisites (Phase 0, manual)
@@ -71,7 +71,11 @@ Function URL creation makes Lambda add its own public-access statements to the f
 {"start_url": "<Identity Center start URL>", "region": "us-west-2", "account_id": "<account>", "role_name": "gamevpn-player", "api_url": "<session_api_url output>"}
 ```
 
-`build/maplegate up` asks for the administrator password once (the tunnel needs root), signs in in the browser the first time only, asks for a session, waits for the Discord approval, and brings up the tunnel. Ctrl-C closes the session and removes the routes. `gamevpn login` only signs in. All traffic goes through the node, IPv6 included (the node drops it). Windows is not implemented yet.
+`build/maplegate up` asks for the administrator password once (the tunnel needs root), signs in in the browser the first time only, asks for a session, waits for the Discord approval, and brings up the tunnel. Ctrl-C closes the session and removes the routes. `maplegate up` is the terminal client; `maplegate login` only signs in. All traffic goes through the node, IPv6 included (the node drops it). Windows is not implemented yet.
+
+## The installer (macOS)
+
+`client/packaging/macos/build-pkg.sh <settings file>` builds `build/MapleGate.pkg` (the tray app, the daemon, `MapleGate.app` to open it from Spotlight, log rotation) and `build/MapleGate-uninstall.pkg`. The settings file is the JSON above; it is copied into the package, so a friend never writes it. What a friend does is in [docs/friends-guide.md](docs/friends-guide.md). The pkg is not signed, so the guide says how to get past Gatekeeper.
 
 ## Debugging with the CLI (no tunnel)
 

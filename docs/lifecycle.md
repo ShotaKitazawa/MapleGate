@@ -20,8 +20,9 @@ DynamoDB is the single source of truth. Every component converges on it; none ho
 | `SESSION#<sid>` / `META` | Lambda | user, public_key, status, address, approver, discord_message_id, msg_synced, created_at, approved_at, expires_at, close_reason, error, ttl |
 | `WORK` / `<sid>` | intent: Lambda, observation: node | intent: phase (mirror of META.status), public_key, address, expires_at. observation: applied_at, applied_boot_id, last_handshake_at, removed_at, error |
 | `NODE` / `vpn` | node | instance_id, boot_id, public_ip, last_seen, state, mode |
-| `HEALTH` / `janitor` | janitor | last_run, start_failures, cooldown_until |
-| `USER#<u>` / `ACTIVE`; `IP#<a>` / `LEASE` | Lambda | as before |
+| `HEALTH` / `janitor` | janitor | last_run, last_start_at, start_failures, cooldown_until, running_since, idle_since, unresponsive_alerted_at, overstay_alerted_at |
+| `USER#<u>` / `ACTIVE` | Lambda | the user's one live session |
+| `IP#<a>` / `LEASE` | Lambda | the lease of a tunnel address |
 
 A META transition and its WORK mirror are always one transaction. The janitor deletes a WORK item after `removed_at`.
 
@@ -99,12 +100,12 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 - C14 janitor stopped: the node enforces expiry and stop locally; GET/POST evaluate expiry lazily.
 - C15 start loop: two starts without heartbeat fail live sessions and pause starts for 15 min.
 - C16 META removed by TTL, orphan WORK: treated as terminal, deleted after `removed_at`.
-- C17 regional outage: out of scope; budget alarms bound exposure.
+- C17 regional outage: out of scope; the monthly budget bounds exposure.
 
 ### D. Discord
 - D1 post fails: session failed, 502, active slot released.
 - D2 update fails: janitor retries; 404 means give up; stop after 1 h.
-- D3 bot token revoked: everything fails; alarm.
+- D3 bot token revoked: every approval fails. Nothing raises an alarm; the first person who asks notices.
 - D4 bad signature or replay: verification and timestamp window; per-sid idempotency.
 - D5 button on a terminal session: message refreshed to the current outcome.
 - D6 double or concurrent press: one conditional transition wins.
@@ -155,4 +156,4 @@ An approved session lasts SESSION_TTL (4 hours) from approval, and the janitor e
 
 An extension moves the deadline in META, in WORK and in the user's active slot, and renews the IP lease first, so that a failure after it is retried on the next run. Renewal is its own operation: the approval path releases an address it failed to use, so an acquisition that also succeeded for the current holder would let a duplicate approval free the address of the session that won (the model test found this).
 
-What the TTL is for now: if the janitor stops, nothing extends, and a session ends within SESSION_TTL minus the extension interval at the earliest, which tolerates a janitor outage of about three and a half hours. The node enforces the deadline by itself (plan.go), so this holds without any other component. What it does not cover: a handshake signal that is wrong in the "in use" direction would extend a session that nobody uses. The cost is a node left running at about a cent an hour; nothing is done about it automatically, and a janitor that has stopped is the failure to alarm on (Phase 6), not the length of a session.
+What the TTL is for now: if the janitor stops, nothing extends, and a session ends within SESSION_TTL minus the extension interval at the earliest, which tolerates a janitor outage of about three and a half hours. The node enforces the deadline by itself (plan.go), so this holds without any other component. What it does not cover: a handshake signal that is wrong in the "in use" direction would extend a session that nobody uses. The cost is a node left running at about a cent an hour; nothing is done about it automatically, and a janitor that has stopped has no alarm either: approvals stop starting the node, and the person who asked notices. Not the length of a session.

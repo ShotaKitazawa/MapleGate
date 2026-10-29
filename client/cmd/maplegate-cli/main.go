@@ -1,4 +1,4 @@
-// maplegate-cli drives the session API end to end; the tray client replaces it in Phase 4.
+// maplegate-cli calls the session API without a tunnel, to debug it.
 package main
 
 import (

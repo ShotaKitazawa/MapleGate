@@ -10,7 +10,7 @@ import (
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
-// Up is what the privileged side receives; Phase 5 sends the same object to the daemon over a socket.
+// Up is what the privileged side receives; the daemon receives the same object over its socket.
 type Up struct {
 	PrivateKey string   `json:"private_key"`
 	Address    string   `json:"address"`
