@@ -118,7 +118,8 @@ resource "aws_instance" "vpn" {
   instance_initiated_shutdown_behavior = "stop"
 
   metadata_options {
-    http_tokens = "required"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
   }
 
   root_block_device {

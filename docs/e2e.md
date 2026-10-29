@@ -29,10 +29,16 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D18 | S5: no handshake ends the session | `closed` with reason `idle` 642 seconds after the last recorded handshake (10 minutes plus the janitor interval) |
 | D19 | The janitor raises no false node alert across a full cycle: session, idle, stop | no alert recorded, none in the log |
 | D20 | A request awaiting approval does not start a stopped node | the node stayed `stopped` for 150 seconds with a pending request, over several janitor runs |
+| D21 | S6: approval on a stopped node, the janitor starts it | `active` about 50 seconds after the request (limit 5 minutes) |
+| D22 | S4: an approved session in use is extended and an unused one is not | with `session_ttl` 6m and `session_extend_every` 3m, the expiry moved every 3 minutes past the original 6; after the tunnel was dropped it kept extending until the handshake was 10 minutes old, then closed as `idle`; both values were put back |
+| D23 | S1: a request nobody approves expires at the approval deadline | `expired`, reason `approval timeout`, `msg_synced` true; the Discord message text itself is not yet looked at |
+| D24 | The tunnel cannot reach the node's own services or the VPC | IMDS token request got no answer (it got 200 before the fix), TCP 22 closed, ICMP to 10.66.0.1 and traffic to the internet still work; fixed by the `input` and `forward` rules in `node/nftables.conf` and `http_put_response_hop_limit = 1` |
 
 ## Todo
 
 ### Access control (needs a second Identity Center user in `players`)
+
+A2 and A3 must be done before release.
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
@@ -44,28 +50,17 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
-| S1 | A request nobody approves expires at the approval deadline (15 minutes) | `expired`, message updated, node idles out | both | safe |
 | S2 | DELETE while pending | `closed`, buttons replaced by the outcome, no peer ever added | both | safe |
-| S4 | An approved session in use is extended and one nobody uses is not | with `session_ttl` 6m and `session_extend_every` 3m, a connected session stays `active` past 6 minutes and its `expires_at` moves; with no handshake it closes as `idle`; with the janitor not running it ends at the TTL; then put both back | both | reversible |
-| S6 | Approval on a stopped node when the janitor starts it | `active` within the provisioning timeout from a cold start | claude | safe |
 
 ### Node failures
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
-| N3 | Egress cut (remove the security group egress rule) | existing tunnel keeps working, a new approval fails after 5 minutes, all recovers when the rule returns | both | reversible |
 | N4 | Agent stopped (`systemctl stop vpn-agent`) | Discord alert "has not reported" after about 10 minutes, again after an hour; no alert after the agent is back | both | reversible |
 | N5 | Agent that never stops the node (set `IDLE_STOP` huge in `/etc/gamevpn/env`, restart agent) | Discord alert "no live session" about 35 minutes after the last session | both | reversible |
 | N6 | A fresh agent binary is promoted after its first healthy tick; a broken one is rolled back to `agent.good` | `cmp agent agent.good` after a normal boot; a deliberately broken build ends up on the old binary | both | reversible |
-| N7 | DynamoDB policy narrowed (LeadingKeys) | agent reports nothing, the janitor sees silence, the start breaker stops restarts | both | destructive |
-| N8 | Replace the instance with `-replace=aws_instance.vpn` while no session is live | cold cloud-init to `active` with no manual step: dnf with swap, wg0, nftables, agent; the server public key parameter updated | both | destructive |
-| N9 | Start breaker: a node that never comes up | two starts without a heartbeat fail the live sessions and a 15 minute cooldown begins | both | destructive |
 
-### Discord failures
-
-| ID | What | Pass when | Who | Risk |
-|---|---|---|---|---|
-| C2 | The approval message was deleted by a person | closing the session still completes (404 is treated as synced) | both | safe |
+Not planned: egress cut, narrowed DynamoDB policy, instance replacement, start breaker, a deleted approval message. They are decided when they happen; the logic is covered by the unit and model tests.
 
 ### Cost and operations
 
