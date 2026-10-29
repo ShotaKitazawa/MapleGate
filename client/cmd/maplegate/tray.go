@@ -17,7 +17,7 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/client/internal/session"
 )
 
-const daemonSocket = "/var/run/gamevpnd.sock"
+const daemonSocket = "/var/run/maplegated.sock"
 
 // dot draws the tray icon: a filled circle, because the state is all it has to say.
 func dot(c color.RGBA) []byte {
@@ -131,7 +131,7 @@ func tray() error {
 				case <-disconnect.ClickedCh:
 					a.Disconnect()
 				case <-showLog.ClickedCh:
-					_ = exec.Command("open", "-a", "Console", "/var/log/gamevpnd.log").Run()
+					_ = exec.Command("open", "-a", "Console", "/var/log/maplegated.log").Run()
 				case <-signOut.ClickedCh:
 					a.SignOut()
 				case <-quit.ClickedCh:

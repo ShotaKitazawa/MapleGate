@@ -1,6 +1,6 @@
-// gamevpn signs in, asks for a session and holds the tunnel while it is open.
+// maplegate signs in, asks for a session and holds the tunnel while it is open.
 //
-// Everything runs as the user except `gamevpn tunnel`, which up starts through sudo and hands the key over on stdin.
+// Everything runs as the user except `maplegate tunnel`, which up starts through sudo and hands the key over on stdin.
 package main
 
 import (

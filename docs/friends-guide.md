@@ -4,7 +4,7 @@ This sends your game's traffic through a server in the US west. It only runs whi
 
 ## Install (once)
 
-1. Download `gamevpn.pkg` from the link you were given.
+1. Download `MapleGate.pkg` from the link you were given.
 2. The package is not signed by Apple, so macOS refuses a double click. **Right click the file, choose Open, then Open again.** If that button is missing: System Settings, Privacy & Security, scroll down, "Open Anyway".
 3. Enter your Mac password when asked. A grey dot appears in the menu bar.
 4. You will get an e-mail from AWS inviting you to set a password. Do that first.
@@ -28,4 +28,4 @@ Colours: grey, not connected; amber, signing in or waiting for approval; green, 
 
 ## Remove
 
-Open `gamevpn-uninstall.pkg` the same way you opened the installer. Or, in Terminal, run `sudo /usr/local/share/gamevpn/uninstall.sh`.
+Open `MapleGate-uninstall.pkg` the same way you opened the installer. Or, in Terminal, run `sudo /usr/local/share/maplegate/uninstall.sh`.

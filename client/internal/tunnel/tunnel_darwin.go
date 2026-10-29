@@ -18,7 +18,7 @@ import (
 )
 
 // stateFile remembers the one route that outlives the interface, so a run killed with SIGKILL is cleaned up by the next.
-const stateFile = "/var/run/gamevpn-tunnel.json"
+const stateFile = "/var/run/maplegate-tunnel.json"
 
 type pinned struct {
 	Endpoint string         `json:"endpoint"`

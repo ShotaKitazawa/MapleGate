@@ -23,7 +23,7 @@ func Dir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(base, "gamevpn"), nil
+	return filepath.Join(base, "MapleGate"), nil
 }
 
 func Load(dir string) (Settings, error) {

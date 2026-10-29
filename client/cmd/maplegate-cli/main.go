@@ -1,4 +1,4 @@
-// gamevpn-cli drives the session API end to end; the tray client replaces it in Phase 4.
+// maplegate-cli drives the session API end to end; the tray client replaces it in Phase 4.
 package main
 
 import (
@@ -24,10 +24,10 @@ func main() {
 }
 
 func run() error {
-	url := flag.String("url", os.Getenv("GAMEVPN_API_URL"), "session API Function URL")
+	url := flag.String("url", os.Getenv("MAPLEGATE_API_URL"), "session API Function URL")
 	wait := flag.Duration("wait", 10*time.Minute, "how long `up` waits for approval and the node")
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "usage: gamevpn-cli [-url URL] up | get <id> | delete <id>")
+		fmt.Fprintln(os.Stderr, "usage: maplegate-cli [-url URL] up | get <id> | delete <id>")
 		flag.PrintDefaults()
 	}
 	flag.Parse()

@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.maplegate.gamevpn</string>
+  <string>com.maplegate.tray</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/gamevpn</string>
+    <string>/usr/local/bin/maplegate</string>
   </array>
   <key>RunAtLoad</key>
   <true/>

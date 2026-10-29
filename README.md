@@ -65,20 +65,20 @@ Function URL creation makes Lambda add its own public-access statements to the f
 
 ## The client (macOS)
 
-`mise run build` produces `build/gamevpn`. Put the deployment's settings (none of them is secret) in `~/Library/Application Support/gamevpn/config.json`:
+`mise run build` produces `build/maplegate`. Put the deployment's settings (none of them is secret) in `~/Library/Application Support/MapleGate/config.json`:
 
 ```
 {"start_url": "<Identity Center start URL>", "region": "us-west-2", "account_id": "<account>", "role_name": "gamevpn-player", "api_url": "<session_api_url output>"}
 ```
 
-`build/gamevpn up` asks for the administrator password once (the tunnel needs root), signs in in the browser the first time only, asks for a session, waits for the Discord approval, and brings up the tunnel. Ctrl-C closes the session and removes the routes. `gamevpn login` only signs in. All traffic goes through the node, IPv6 included (the node drops it). Windows is not implemented yet.
+`build/maplegate up` asks for the administrator password once (the tunnel needs root), signs in in the browser the first time only, asks for a session, waits for the Discord approval, and brings up the tunnel. Ctrl-C closes the session and removes the routes. `gamevpn login` only signs in. All traffic goes through the node, IPv6 included (the node drops it). Windows is not implemented yet.
 
 ## Debugging with the CLI (no tunnel)
 
 ```
 aws sso login --profile <your profile>
-export AWS_PROFILE=<your profile> GAMEVPN_API_URL=<session_api_url output>
-go run ./client/cmd/gamevpn-cli up > wg0.conf
+export AWS_PROFILE=<your profile> MAPLEGATE_API_URL=<session_api_url output>
+go run ./client/cmd/maplegate-cli up > wg0.conf
 ```
 `up` creates a session and waits; press Approve in Discord. It then prints a WireGuard config to stdout (the private key stays on your machine). `get <id>` and `delete <id>` read and end a session. An unsigned `curl` to the URL must return 403.
 

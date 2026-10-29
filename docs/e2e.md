@@ -9,7 +9,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 
 | ID | What | Evidence |
 |---|---|---|
-| D1 | apply request, Discord post, approve, node starts from stopped, `active`, DELETE, `closed`, IP lease released, WORK reclaimed | `gamevpn-cli up/delete`, three sessions |
+| D1 | apply request, Discord post, approve, node starts from stopped, `active`, DELETE, `closed`, IP lease released, WORK reclaimed | `maplegate-cli up/delete`, three sessions |
 | D2 | Deny ends the session as `denied` and nothing is applied | deny pressed on purpose |
 | D3 | Tunnel works: handshake, ping to 10.66.0.1, ping to 1.1.1.1 through NAT | container client |
 | D4 | All traffic leaves through the node: `curl ifconfig.io` returns the node's public IP, TLS site returns 200 | the node's address instead of the client's own |
@@ -75,14 +75,14 @@ A2 and A3 must be done before release.
 
 ## Client on macOS (Phase 4), by hand
 
-`mise run build`, then `build/gamevpn up` in a terminal. Settings are in `~/Library/Application Support/gamevpn/config.json`.
+`mise run build`, then `build/maplegate up` in a terminal. Settings are in `~/Library/Application Support/MapleGate/config.json`.
 
 | ID | What | Pass when | Who |
 |---|---|---|---|
 | M1 | First `up`: sign in, approval, tunnel | the browser opens once, Discord asks, `curl ifconfig.io` shows the node's address | both |
 | M2 | A second `up` right after | no browser, no sign in prompt | you |
 | M3 | Ctrl-C | the session is `closed`, `netstat -rn` shows no route of ours and no leftover `utun` address | you |
-| M4 | `kill -9` of the privileged `gamevpn tunnel` and of `gamevpn up` | the next `up` starts clean; `/var/run/gamevpn-tunnel.json` is gone after a normal end | you |
+| M4 | `kill -9` of the privileged `maplegate tunnel` and of `maplegate up` | the next `up` starts clean; `/var/run/maplegate-tunnel.json` is gone after a normal end | you |
 | M5 | Wi-Fi switch during a session | traffic recovers within about 10 seconds, or ends with a message | you |
 | M6 | `curl -6 ifconfig.io` | fails or shows the node's address, never the local one | you |
 | M7 | A session left open by an earlier run | `up` closes it and asks again | you |
@@ -101,7 +101,7 @@ Build with `client/packaging/macos/build-pkg.sh <settings file>`; install on a m
 | P4 | Kill the app (`kill -9`) and leave it dead | the tunnel stays up for 15 minutes, then goes down; the node closes the session as `idle` | you |
 | P5 | Disconnect from the menu | session `closed`, no route left, `curl ifconfig.io` shows your own address | you |
 | P6 | The daemon refuses another user | a second macOS account (or `sudo -u`) gets "not allowed" from the socket | you |
-| P7 | Uninstall script (done by the script from a terminal), and `gamevpn-uninstall.pkg` opened from Finder | nothing of ours is left in `/usr/local`, `/Library`, `/var/run`, no process, no receipt, no route | you |
+| P7 | Uninstall script (done by the script from a terminal), and `MapleGate-uninstall.pkg` opened from Finder | nothing of ours is left in `/usr/local`, `/Library`, `/var/run`, no process, no receipt, no route | you |
 
 ## Full end-to-end, after the client exists (Phase 4 onward)
 

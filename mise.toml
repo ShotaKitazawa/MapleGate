@@ -54,10 +54,10 @@ run = """
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/discord &&
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/janitor &&
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./node/agent/cmd/vpn-agent &&
-  go build -o /dev/null ./client/cmd/gamevpn-cli &&
-  go build -o /dev/null ./client/cmd/gamevpn &&
-  go build -o /dev/null ./client/cmd/gamevpnd &&
-  GOOS=windows GOARCH=amd64 go build -o /dev/null ./client/cmd/gamevpn
+  go build -o /dev/null ./client/cmd/maplegate-cli &&
+  go build -o /dev/null ./client/cmd/maplegate &&
+  go build -o /dev/null ./client/cmd/maplegated &&
+  GOOS=windows GOARCH=amd64 go build -o /dev/null ./client/cmd/maplegate
 """
 
 [tasks.test-dynamodb]

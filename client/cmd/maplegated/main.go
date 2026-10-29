@@ -1,4 +1,4 @@
-// gamevpnd is the privileged half of the client: it holds the tunnel for the tray app, which is not privileged.
+// maplegated is the privileged half of the client: it holds the tunnel for the tray app, which is not privileged.
 package main
 
 import (
@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	sock := flag.String("socket", "/var/run/gamevpnd.sock", "path of the Unix socket")
+	sock := flag.String("socket", "/var/run/maplegated.sock", "path of the Unix socket")
 	orphan := flag.Duration("orphan", 15*time.Minute, "take the tunnel down after this long without a call")
 	flag.Parse()
 	if err := run(*sock, *orphan); err != nil {

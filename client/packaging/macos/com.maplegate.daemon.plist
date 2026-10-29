@@ -3,16 +3,16 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.maplegate.gamevpnd</string>
+  <string>com.maplegate.daemon</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/gamevpnd</string>
+    <string>/usr/local/bin/maplegated</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
   <key>StandardErrorPath</key>
-  <string>/var/log/gamevpnd.log</string>
+  <string>/var/log/maplegated.log</string>
 </dict>
 </plist>

@@ -133,7 +133,7 @@ func (l *Login) register(ctx context.Context, c cache) (cache, error) {
 		return c, nil
 	}
 	out, err := l.OIDC.RegisterClient(ctx, &ssooidc.RegisterClientInput{
-		ClientName: aws.String("gamevpn"), ClientType: aws.String("public"), Scopes: []string{"sso:account:access"},
+		ClientName: aws.String("MapleGate"), ClientType: aws.String("public"), Scopes: []string{"sso:account:access"},
 	})
 	if err != nil {
 		return c, fmt.Errorf("register client: %w", err)
@@ -244,7 +244,7 @@ func (l *Login) retrieve(ctx context.Context) (aws.Credentials, error) {
 		return aws.Credentials{
 			AccessKeyID: aws.ToString(rc.AccessKeyId), SecretAccessKey: aws.ToString(rc.SecretAccessKey),
 			SessionToken: aws.ToString(rc.SessionToken), CanExpire: true,
-			Expires: time.UnixMilli(rc.Expiration).Add(-refreshMargin), Source: "gamevpn-sso",
+			Expires: time.UnixMilli(rc.Expiration).Add(-refreshMargin), Source: "maplegate-sso",
 		}, nil
 	}
 }
