@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"image/color"
@@ -14,6 +15,7 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/client/internal/api"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/app"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/diag"
+	"github.com/ShotaKitazawa/MapleGate/client/internal/gamewatch"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/icon"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/ipc"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/session"
@@ -46,6 +48,29 @@ func output(name string, args ...string) string {
 	return string(out)
 }
 
+// gameRunning reads the executable paths with ps: pgrep and nettop cut a name at 16 characters, which hits this game's.
+func gameRunning(names []string) (bool, error) {
+	out, err := exec.Command("ps", "-axo", "comm=").Output()
+	if err != nil {
+		return false, err
+	}
+	return gamewatch.Running(names, strings.Split(string(out), "\n")), nil
+}
+
+// askToLeave gives up after the same two minutes the watcher waits, so a dialog nobody sees does not stay behind; a cancelled ctx kills it.
+func askToLeave(ctx context.Context) app.Answer {
+	script := `display dialog "The game has not been running for a while. Disconnect MapleGate?" with title "MapleGate" ` +
+		`buttons {"Disconnect", "Keep connected"} default button "Keep connected" giving up after 120`
+	out, err := exec.CommandContext(ctx, "osascript", "-e", script).Output()
+	switch {
+	case err != nil, strings.Contains(string(out), "gave up:true"):
+		return app.NoAnswer
+	case strings.Contains(string(out), "button returned:Disconnect"):
+		return app.Leave
+	}
+	return app.Keep
+}
+
 func copyToClipboard(text string) error {
 	c := exec.Command("pbcopy")
 	c.Stdin = strings.NewReader(text)
@@ -75,6 +100,14 @@ func tray() error {
 		Wait:     10 * time.Minute,
 		Poll:     5 * time.Second,
 		Forget:   l.Forget,
+	}
+	if len(s.GameProcesses) > 0 {
+		a.Game = &app.Game{
+			Running: func() (bool, error) { return gameRunning(s.GameProcesses) },
+			Ask:     askToLeave,
+			Absent:  10 * time.Minute,
+			Answer:  2 * time.Minute,
+		}
 	}
 
 	systray.Run(func() {
@@ -123,6 +156,11 @@ func tray() error {
 				notify("MapleGate", "Connected")
 			case app.Failed:
 				notify("MapleGate", st.Text)
+			case app.Idle:
+				// only a disconnect the person did not ask for carries a reason
+				if st.Text != "" {
+					notify("MapleGate", st.Text)
+				}
 			}
 		}
 		systray.SetIcon(icons[app.Idle])

@@ -15,6 +15,8 @@ type Settings struct {
 	AccountID string `json:"account_id"`
 	RoleName  string `json:"role_name"`
 	APIURL    string `json:"api_url"`
+	// GameProcesses are the program names that mean the game is running; with none, the tunnel is never ended for lack of the game.
+	GameProcesses []string `json:"game_processes,omitempty"`
 }
 
 // Dir is where the settings and the sign in cache live: the user's own application support folder.

@@ -69,7 +69,7 @@ Function URL creation makes Lambda add its own public-access statements to the f
 `mise run build` produces `build/maplegate`. Put the deployment's settings (none of them is secret) in `~/Library/Application Support/MapleGate/config.json`:
 
 ```
-{"start_url": "<Identity Center start URL>", "region": "us-west-2", "account_id": "<account>", "role_name": "gamevpn-player", "api_url": "<session_api_url output>"}
+{"start_url": "<Identity Center start URL>", "region": "us-west-2", "account_id": "<account>", "role_name": "gamevpn-player", "api_url": "<session_api_url output>", "game_processes": ["<program name of the game>"]}
 ```
 
 `build/maplegate up` asks for the administrator password once (the tunnel needs root), signs in in the browser the first time only, asks for a session, waits for the Discord approval, and brings up the tunnel. Ctrl-C closes the session and removes the routes. `maplegate up` is the terminal client; `maplegate login` only signs in. All traffic goes through the node, IPv6 included (the node drops it). Windows is not implemented yet.

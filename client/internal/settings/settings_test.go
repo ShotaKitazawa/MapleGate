@@ -33,3 +33,15 @@ func TestLoadSaysWhereTheFileShouldBe(t *testing.T) {
 
 	assert.ErrorContains(t, err, "config.json does not exist")
 }
+
+func TestLoadReadsTheGameProcessesAndTheyAreOptional(t *testing.T) {
+	base := `"start_url":"https://s","region":"r","account_id":"1","api_url":"https://a"`
+
+	with, err := Load(write(t, `{`+base+`,"game_processes":["A","B C"]}`))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"A", "B C"}, with.GameProcesses)
+
+	without, err := Load(write(t, `{`+base+`}`))
+	require.NoError(t, err)
+	assert.Empty(t, without.GameProcesses)
+}

@@ -223,3 +223,91 @@ func TestSignOutReportsTheStateAgainAfterTheSignInIsGone(t *testing.T) {
 	require.NotEmpty(t, seen)
 	assert.False(t, seen[len(seen)-1])
 }
+
+type game struct {
+	mu       sync.Mutex
+	running  bool
+	err      error
+	asked    int
+	answer   Answer
+	canceled chan struct{}
+}
+
+func (g *game) Running() (bool, error) { g.mu.Lock(); defer g.mu.Unlock(); return g.running, g.err }
+func (g *game) set(r bool)             { g.mu.Lock(); g.running = r; g.mu.Unlock() }
+func (g *game) askedCount() int        { g.mu.Lock(); defer g.mu.Unlock(); return g.asked }
+
+func (g *game) Ask(ctx context.Context) Answer {
+	g.mu.Lock()
+	g.asked++
+	a := g.answer
+	g.mu.Unlock()
+	if a == NoAnswer {
+		<-ctx.Done()
+		close(g.canceled)
+	}
+	return a
+}
+
+func watched(answer Answer) (*App, *sessions, *daemon, *game) {
+	a, s, d := rig()
+	g := &game{answer: answer, canceled: make(chan struct{})}
+	a.Game = &Game{Running: g.Running, Ask: g.Ask, Absent: 20 * time.Millisecond, Answer: 60 * time.Millisecond}
+	return a, s, d, g
+}
+
+func TestLeavingAfterTheGameClosedDisconnectsAndSaysWhy(t *testing.T) {
+	a, s, d, _ := watched(Leave)
+
+	a.Connect()
+
+	require.Eventually(t, func() bool { return a.State().Phase == Idle && a.State().Text != "" }, time.Second, time.Millisecond)
+	assert.Contains(t, a.State().Text, "game")
+	assert.Contains(t, d.opList(), "down")
+	assert.Equal(t, []string{"s1"}, s.closedIDs())
+}
+
+func TestNothingIsAskedWhileTheGameRuns(t *testing.T) {
+	a, _, _, g := watched(Leave)
+	g.set(true)
+
+	a.Connect()
+
+	time.Sleep(150 * time.Millisecond)
+	assert.Equal(t, Connected, a.State().Phase)
+	assert.Zero(t, g.askedCount())
+}
+
+func TestNoAnswerDisconnects(t *testing.T) {
+	a, s, _, g := watched(NoAnswer)
+
+	a.Connect()
+
+	require.Eventually(t, func() bool { return a.State().Phase == Idle && a.State().Text != "" }, time.Second, time.Millisecond)
+	assert.Equal(t, []string{"s1"}, s.closedIDs())
+	select {
+	case <-g.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("the dialog was left open")
+	}
+}
+
+func TestKeepingStaysConnected(t *testing.T) {
+	a, _, _, g := watched(Keep)
+
+	a.Connect()
+
+	require.Eventually(t, func() bool { return g.askedCount() >= 1 }, time.Second, time.Millisecond)
+	assert.Equal(t, Connected, a.State().Phase)
+}
+
+func TestNotKnowingWhetherTheGameRunsNeverDisconnects(t *testing.T) {
+	a, _, _, g := watched(Leave)
+	g.err = errors.New("ps failed")
+
+	a.Connect()
+
+	time.Sleep(150 * time.Millisecond)
+	assert.Equal(t, Connected, a.State().Phase)
+	assert.Zero(t, g.askedCount())
+}

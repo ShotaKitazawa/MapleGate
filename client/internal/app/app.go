@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ShotaKitazawa/MapleGate/client/internal/api"
+	"github.com/ShotaKitazawa/MapleGate/client/internal/gamewatch"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/ipc"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/tunnel"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -49,6 +50,23 @@ type Daemon interface {
 	Do(ipc.Request) (ipc.Status, error)
 }
 
+type Answer int
+
+const (
+	NoAnswer Answer = iota
+	Keep
+	Leave
+)
+
+// Game is how the app tells that the tunnel is no longer used; without it the tunnel is never ended for that reason.
+type Game struct {
+	// Running errs on the side of "running": not knowing never ends a tunnel.
+	Running func() (bool, error)
+	// Ask shows the question and returns when it is answered or ctx is done.
+	Ask            func(ctx context.Context) Answer
+	Absent, Answer time.Duration
+}
+
 type App struct {
 	Sessions Sessions
 	Daemon   Daemon
@@ -58,6 +76,7 @@ type App struct {
 	OnChange func(State)
 	// Forget drops the cached sign in; SignOut calls it after the tunnel is down.
 	Forget func()
+	Game   *Game
 
 	mu     sync.Mutex
 	state  State
@@ -175,6 +194,7 @@ func (a *App) hold(ctx context.Context, gen int, id string) {
 	}
 	t := time.NewTicker(poll)
 	defer t.Stop()
+	gw := a.newGameWatch(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -184,6 +204,10 @@ func (a *App) hold(ctx context.Context, gen int, id string) {
 			a.set(gen, State{Phase: Failed, Text: fmt.Sprintf("The session ended: %s", s.Status)})
 			return
 		case <-t.C:
+			if gw != nil && gw.tick() {
+				a.disconnect("Disconnected: the game was not running")
+				return
+			}
 			st, err := a.Daemon.Do(ipc.Request{Op: "status"})
 			if err != nil || st.State != "down" {
 				continue
@@ -199,8 +223,59 @@ func (a *App) hold(ctx context.Context, gen int, id string) {
 	}
 }
 
+// gameWatch asks whether to disconnect once the game has been gone for a while.
+type gameWatch struct {
+	g       *Game
+	w       *gamewatch.Watcher
+	ctx     context.Context
+	cancel  context.CancelFunc
+	answers chan Answer
+}
+
+func (a *App) newGameWatch(ctx context.Context) *gameWatch {
+	if a.Game == nil {
+		return nil
+	}
+	return &gameWatch{g: a.Game, w: gamewatch.New(a.Game.Absent, a.Game.Answer, time.Now()), ctx: ctx, answers: make(chan Answer, 1)}
+}
+
+// tick reports whether the tunnel should be ended now.
+func (gw *gameWatch) tick() bool {
+	select {
+	case ans := <-gw.answers:
+		switch ans {
+		case Leave:
+			return true
+		case Keep:
+			gw.w.Keep(time.Now())
+		}
+	default:
+	}
+	running, err := gw.g.Running()
+	switch gw.w.Tick(time.Now(), running || err != nil) {
+	case gamewatch.Ask:
+		var ctx context.Context
+		ctx, gw.cancel = context.WithCancel(gw.ctx)
+		go func() { gw.answers <- gw.g.Ask(ctx) }()
+	case gamewatch.Cancel:
+		gw.stopAsking()
+	case gamewatch.Disconnect:
+		gw.stopAsking()
+		return true
+	}
+	return false
+}
+
+func (gw *gameWatch) stopAsking() {
+	if gw.cancel != nil {
+		gw.cancel()
+	}
+}
+
 // Disconnect ends the tunnel and the session.
-func (a *App) Disconnect() {
+func (a *App) Disconnect() { a.disconnect("") }
+
+func (a *App) disconnect(why string) {
 	a.mu.Lock()
 	if a.cancel != nil {
 		a.cancel()
@@ -216,7 +291,7 @@ func (a *App) Disconnect() {
 	if id != "" {
 		_ = a.Sessions.Close(id)
 	}
-	a.set(gen, State{Phase: Idle})
+	a.set(gen, State{Phase: Idle, Text: why})
 }
 
 // SignOut ends any tunnel first, so the session is closed while there are still credentials to close it with.
