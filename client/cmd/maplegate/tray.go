@@ -23,13 +23,13 @@ import (
 const daemonSocket = "/var/run/maplegated.sock"
 
 // 32 pixels because the menu bar draws it 16 points high, twice that on a Retina screen
-func leaf(c color.RGBA) []byte { return icon.Leaf(32, c) }
+func dot(c color.RGBA) []byte { return icon.Dot(32, c) }
 
 var icons = map[string][]byte{
-	app.Idle:      leaf(color.RGBA{128, 128, 128, 255}),
-	app.Waiting:   leaf(color.RGBA{230, 160, 0, 255}),
-	app.Connected: leaf(color.RGBA{40, 170, 70, 255}),
-	app.Failed:    leaf(color.RGBA{210, 50, 50, 255}),
+	app.Idle:      dot(color.RGBA{128, 128, 128, 255}),
+	app.Waiting:   dot(color.RGBA{230, 160, 0, 255}),
+	app.Connected: dot(color.RGBA{40, 170, 70, 255}),
+	app.Failed:    dot(color.RGBA{210, 50, 50, 255}),
 }
 
 func notify(title, msg string) {

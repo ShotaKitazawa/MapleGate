@@ -18,22 +18,13 @@ func decode(t *testing.T, b []byte) (w int, at func(x, y int) color.RGBA) {
 	return img.Bounds().Dx(), func(x, y int) color.RGBA { return color.RGBAModel.Convert(img.At(x, y)).(color.RGBA) }
 }
 
-func TestLeafIsFilledAtTheCentreAndEmptyAtTheCorners(t *testing.T) {
-	w, at := decode(t, Leaf(44, green))
+func TestDotIsFilledAtTheCentreAndEmptyAtTheCorners(t *testing.T) {
+	w, at := decode(t, Dot(32, green))
 
-	assert.Equal(t, 44, w)
-	assert.Equal(t, uint8(255), at(22, 22).A)
+	assert.Equal(t, 32, w)
+	assert.Equal(t, green, at(16, 16))
 	assert.Equal(t, uint8(0), at(0, 0).A)
-	assert.Equal(t, uint8(0), at(43, 0).A)
-	assert.Equal(t, uint8(0), at(0, 43).A)
-}
-
-func TestLeafIsSymmetric(t *testing.T) {
-	_, at := decode(t, Leaf(44, green))
-
-	for y := 0; y < 44; y++ {
-		assert.Equal(t, at(10, y), at(43-10, y), "row %d", y)
-	}
+	assert.Equal(t, uint8(0), at(31, 31).A)
 }
 
 func TestAppIconIsALeafOnAColouredSquare(t *testing.T) {

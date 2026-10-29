@@ -1,4 +1,4 @@
-// Package icon draws the maple leaf of the tray and of the app, so there is no image file to keep in step with the code.
+// Package icon draws the menu bar dot and the app's maple leaf, so there is no image file to keep in step with the code.
 package icon
 
 import (
@@ -64,13 +64,22 @@ func blend(dst *image.RGBA, x, y int, c color.RGBA, a float64) {
 	dst.SetRGBA(x, y, color.RGBA{uint8(float64(c.R) * a), uint8(float64(c.G) * a), uint8(float64(c.B) * a), uint8(255 * a)})
 }
 
-// Leaf is a maple leaf of one colour on a transparent square, for the menu bar.
-func Leaf(size int, c color.RGBA) []byte {
+// Dot is a filled circle of one colour on a transparent square, for the menu bar: a state is all it has to say.
+func Dot(size int, c color.RGBA) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	pts := leaf(float64(size), 0.04)
+	r, mid := float64(size)*0.36, float64(size)/2
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
-			blend(img, x, y, c, coverage(pts, x, y))
+			n := 0
+			for sy := 0; sy < 4; sy++ {
+				for sx := 0; sx < 4; sx++ {
+					dx, dy := float64(x)+(float64(sx)+0.5)/4-mid, float64(y)+(float64(sy)+0.5)/4-mid
+					if dx*dx+dy*dy <= r*r {
+						n++
+					}
+				}
+			}
+			blend(img, x, y, c, float64(n)/16)
 		}
 	}
 	return encode(img)
