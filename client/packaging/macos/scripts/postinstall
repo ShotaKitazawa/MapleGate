@@ -1,0 +1,23 @@
+#!/bin/sh
+# Runs as root at the end of the install. The settings file comes with the package and is copied for the person
+# at the console only if they have none, so a later install never overwrites their own.
+set -eu
+
+DAEMON=/Library/LaunchDaemons/com.maplegate.gamevpnd.plist
+AGENT=/Library/LaunchAgents/com.maplegate.gamevpn.plist
+USER_NAME=$(stat -f %Su /dev/console)
+USER_ID=$(id -u "$USER_NAME")
+HOME_DIR=$(dscl . -read "/Users/$USER_NAME" NFSHomeDirectory | awk '{print $2}')
+DEST="$HOME_DIR/Library/Application Support/gamevpn"
+
+if [ "$USER_NAME" != root ] && [ ! -f "$DEST/config.json" ]; then
+  install -d -m 700 -o "$USER_NAME" "$DEST"
+  install -m 600 -o "$USER_NAME" /usr/local/share/gamevpn/config.json "$DEST/config.json"
+fi
+
+launchctl bootout system "$DAEMON" 2>/dev/null || true
+launchctl bootstrap system "$DAEMON"
+if [ "$USER_NAME" != root ]; then
+  launchctl bootout "gui/$USER_ID" "$AGENT" 2>/dev/null || true
+  launchctl bootstrap "gui/$USER_ID" "$AGENT" || true
+fi

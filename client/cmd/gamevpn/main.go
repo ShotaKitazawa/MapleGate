@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,7 +34,7 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: gamevpn login | up")
+		return tray()
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -51,7 +50,8 @@ func run() error {
 	return fmt.Errorf("unknown command %q", os.Args[1])
 }
 
-func signIn(ctx context.Context) (settings.Settings, *auth.Login, error) {
+// newLogin reads the settings and prepares the sign in without signing in.
+func newLogin(say func(string)) (settings.Settings, *auth.Login, error) {
 	dir, err := settings.Dir()
 	if err != nil {
 		return settings.Settings{}, nil, err
@@ -61,11 +61,18 @@ func signIn(ctx context.Context) (settings.Settings, *auth.Login, error) {
 		return s, nil, err
 	}
 	cfg := aws.Config{Region: s.Region, Credentials: aws.AnonymousCredentials{}}
-	l := &auth.Login{
+	return s, &auth.Login{
 		StartURL: s.StartURL, AccountID: s.AccountID, RoleName: s.RoleName, Dir: dir,
 		OIDC: ssooidc.NewFromConfig(cfg), Portal: sso.NewFromConfig(cfg),
 		Open: func(u string) error { return exec.Command("open", u).Run() },
-		Say:  func(m string) { fmt.Fprintln(os.Stderr, m) },
+		Say:  say,
+	}, nil
+}
+
+func signIn(ctx context.Context) (settings.Settings, *auth.Login, error) {
+	s, l, err := newLogin(func(m string) { fmt.Fprintln(os.Stderr, m) })
+	if err != nil {
+		return s, nil, err
 	}
 	if _, err := l.Provider().Retrieve(ctx); err != nil {
 		return s, l, err

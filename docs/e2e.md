@@ -85,6 +85,20 @@ A2 and A3 must be done before release.
 | M6 | `curl -6 ifconfig.io` | fails or shows the node's address, never the local one | you |
 | M7 | A session left open by an earlier run | `up` closes it and asks again | you |
 
+## Tray app and installer on macOS (Phase 5), by hand
+
+Build with `client/packaging/macos/build-pkg.sh <settings file>`; install on a machine that has no client yet.
+
+| ID | What | Pass when | Who |
+|---|---|---|---|
+| P1 | Install the unsigned pkg following `docs/friends-guide.md` | the guide's steps are enough; the dot appears; the settings file was placed | you |
+| P2 | Connect from the menu | browser once, approval, green dot, a notice, the node's address from `curl ifconfig.io` | both |
+| P3 | Quit the app while connected, open it again | the menu shows connected, Disconnect works, the session is closed | you |
+| P4 | Kill the app (`kill -9`) and leave it dead | the tunnel stays up for 15 minutes, then goes down; the node closes the session as `idle` | you |
+| P5 | Disconnect from the menu | session `closed`, no route left, `curl ifconfig.io` shows your own address | you |
+| P6 | The daemon refuses another user | a second macOS account (or `sudo -u`) gets "not allowed" from the socket | you |
+| P7 | Uninstall script | nothing of ours is left in `/usr/local`, `/Library`, `/var/run` | you |
+
 ## Full end-to-end, after the client exists (Phase 4 onward)
 
 These need the real client and a real machine, so they wait until it is built. The server side is covered above.
