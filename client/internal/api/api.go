@@ -17,6 +17,9 @@ import (
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 )
 
+// fresh opens a connection per call: one pooled while the tunnel was up hangs once the tunnel is gone, and the close at the end waited on it.
+var fresh = &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, DisableKeepAlives: true, TLSHandshakeTimeout: 10 * time.Second}}
+
 type Client struct {
 	Base   string
 	Region string
@@ -80,7 +83,7 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte) (Sess
 	}
 	h := c.HTTP
 	if h == nil {
-		h = http.DefaultClient
+		h = fresh
 	}
 	resp, err := h.Do(req)
 	if err != nil {
