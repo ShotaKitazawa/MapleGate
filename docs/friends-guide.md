@@ -22,7 +22,7 @@ Colours: grey, not connected; amber, signing in or waiting for approval; green, 
 
 - Red with "denied": the approval was refused. Ask.
 - Red with "expired": nobody approved in 15 minutes. Connect again and tell them.
-- Nothing happens on Connect: quit from the menu and open **gamevpn** again from Applications or Spotlight. If the menu says the VPN service is not running, restart the Mac once.
+- Nothing happens on Connect: choose Quit in the menu (this also disconnects) and open **MapleGate** again from Applications or Spotlight. If the menu says the VPN service is not running, restart the Mac once.
 - The game works but is slow: tell the person who runs the server which country you are in.
 
 ## Remove

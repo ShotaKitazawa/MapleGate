@@ -1,0 +1,5 @@
+#!/bin/sh
+# Starts the tray through launchd, so it runs as the agent does; a copy started from here would be a second one.
+launchctl kickstart "gui/$(id -u)/com.maplegate.gamevpn" 2>/dev/null && exit 0
+launchctl bootstrap "gui/$(id -u)" /Library/LaunchAgents/com.maplegate.gamevpn.plist 2>/dev/null
+launchctl kickstart "gui/$(id -u)/com.maplegate.gamevpn"

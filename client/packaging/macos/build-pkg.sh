@@ -10,7 +10,7 @@ VERSION=${VERSION:-0.1.0}
 
 rm -rf "$OUT"
 mkdir -p "$OUT/root/usr/local/bin" "$OUT/root/usr/local/share/gamevpn" \
-  "$OUT/root/Library/LaunchDaemons" "$OUT/root/Library/LaunchAgents" "$OUT/arm64" "$OUT/amd64"
+  "$OUT/root/Library/LaunchDaemons" "$OUT/root/Library/LaunchAgents" "$OUT/root/Applications/MapleGate.app/Contents/MacOS" "$OUT/arm64" "$OUT/amd64"
 
 # the tray app uses cgo, so each architecture is built by clang for that architecture
 for arch in arm64 amd64; do
@@ -30,7 +30,12 @@ install -m 644 "$CONF" "$OUT/root/usr/local/share/gamevpn/config.json"
 install -m 644 "$ROOT/client/packaging/macos/com.maplegate.gamevpnd.plist" "$OUT/root/Library/LaunchDaemons/"
 install -m 644 "$ROOT/client/packaging/macos/com.maplegate.gamevpn.plist" "$OUT/root/Library/LaunchAgents/"
 
-pkgbuild --root "$OUT/root" --identifier com.maplegate.gamevpn --version "$VERSION" \
+install -m 644 "$ROOT/client/packaging/macos/app/Info.plist" "$OUT/root/Applications/MapleGate.app/Contents/Info.plist"
+install -m 755 "$ROOT/client/packaging/macos/app/MapleGate" "$OUT/root/Applications/MapleGate.app/Contents/MacOS/MapleGate"
+# a relocatable bundle makes the installer update a copy wherever the person moved it, not the one in /Applications
+pkgbuild --analyze --root "$OUT/root" "$OUT/components.plist" >/dev/null
+plutil -replace 0.BundleIsRelocatable -bool false "$OUT/components.plist"
+pkgbuild --root "$OUT/root" --component-plist "$OUT/components.plist" --identifier com.maplegate.gamevpn --version "$VERSION" \
   --scripts "$ROOT/client/packaging/macos/scripts" --install-location / "$ROOT/build/gamevpn.pkg"
 # the same script runs as the postinstall of a payload-less package, so removing needs no terminal
 mkdir -p "$OUT/uninstall-scripts"

@@ -7,6 +7,6 @@ launchctl bootout "gui/$USER_ID" /Library/LaunchAgents/com.maplegate.gamevpn.pli
 launchctl bootout system /Library/LaunchDaemons/com.maplegate.gamevpnd.plist 2>/dev/null || true
 rm -f /Library/LaunchAgents/com.maplegate.gamevpn.plist /Library/LaunchDaemons/com.maplegate.gamevpnd.plist
 rm -f /usr/local/bin/gamevpn /usr/local/bin/gamevpnd /var/run/gamevpnd.sock /var/run/gamevpn-tunnel.json
-rm -rf /usr/local/share/gamevpn
+rm -rf /usr/local/share/gamevpn /Applications/MapleGate.app
 pkgutil --forget com.maplegate.gamevpn >/dev/null 2>&1 || true
 echo "Removed. Your sign in and settings stay in ~/Library/Application Support/gamevpn; delete that folder to remove them too."

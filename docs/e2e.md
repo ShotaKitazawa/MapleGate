@@ -94,7 +94,8 @@ Build with `client/packaging/macos/build-pkg.sh <settings file>`; install on a m
 |---|---|---|---|
 | P1 | Install the unsigned pkg following `docs/friends-guide.md` | the guide's steps are enough; the dot appears; the settings file was placed | you |
 | P2 | Connect from the menu | browser once, approval, green dot, a notice, the node's address from `curl ifconfig.io` | both |
-| P3 | Quit the app while connected, open it again | the menu shows connected, Disconnect works, the session is closed | you |
+| P3 | Quit the app while connected | the tunnel is taken down and the session closed before the dot disappears; `curl ifconfig.io` shows your own address | you |
+| P3b | Open MapleGate from Spotlight after a Quit | the dot comes back; opening it while it runs starts no second one | you |
 | P4 | Kill the app (`kill -9`) and leave it dead | the tunnel stays up for 15 minutes, then goes down; the node closes the session as `idle` | you |
 | P5 | Disconnect from the menu | session `closed`, no route left, `curl ifconfig.io` shows your own address | you |
 | P6 | The daemon refuses another user | a second macOS account (or `sudo -u`) gets "not allowed" from the socket | you |
