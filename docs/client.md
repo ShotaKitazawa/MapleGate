@@ -38,3 +38,14 @@ The daemon and its IPC exist only so that an unprivileged tray UI can ask for so
 6. The game logs in through the tunnel (F1 in `docs/e2e.md`).
 
 Tests: everything except the part that touches the OS is a unit test (the device flow against a fake server, the session machine, the route plan as a pure function). The OS part is a manual list, `docs/e2e.md`.
+
+## Phase 5 design
+
+The privileged half becomes a daemon, `gamevpnd` (a LaunchDaemon on macOS), and `gamevpn` becomes a tray app that asks it for the tunnel. `tunnel.Run` is unchanged: the daemon runs it where `gamevpn tunnel` did, and the object it receives is the same `tunnel.Up` that was on stdin.
+
+- **IPC**: a Unix socket at `/var/run/gamevpnd.sock`. One JSON line in, one JSON line out per call: `up`, `down`, `status`. The daemon accepts only root and the user who owns the console, checked with the peer credentials of the connection, not with file permissions alone.
+- **The tunnel outlives the UI.** A tray app that crashes in the middle of a game must not cut the player. `status` returns the session id the tunnel was started for, so a restarted UI picks the tunnel up again and keeps watching that session.
+- **A tunnel nobody looks after is taken down.** The UI calls `status` every few seconds, and that is also the heartbeat. After 15 minutes without a call the daemon takes the tunnel down. Without this rule a dead UI would leave the tunnel up, its handshakes would keep the session extended, and the node would never stop. The window is long enough for a restart and short enough to bound the cost.
+- **The UI closes the session** at the server (it holds the credentials; the daemon never does). Taking the tunnel down because nobody looks does not close the session; the node closes it as `idle` within about 10 minutes.
+- **Tray**: one Go code base for both systems (`fyne.io/systray`), because maintaining a native UI per system is more than this project can carry. States: signed out, waiting for approval, connected (with the time left), error.
+- **Installers**: a macOS pkg that installs the two binaries, loads the LaunchDaemon and starts the tray at login; the Windows installer follows the macOS one. Neither is signed or notarized, so the guide for friends says how to get past Gatekeeper and SmartScreen.
