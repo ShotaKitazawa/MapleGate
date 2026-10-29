@@ -82,7 +82,6 @@ variable "monthly_budget_usd" {
 }
 
 variable "alert_email" {
-  description = "Also e-mail the alerts here; empty means Discord only. Cost notices should not depend on the Discord path alone."
+  description = "Where cost and janitor alerts are e-mailed; the subscription must be confirmed from the mail it sends"
   type        = string
-  default     = ""
 }

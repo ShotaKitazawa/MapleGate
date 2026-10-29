@@ -37,6 +37,7 @@ Run `terraform plan` and read it before every `apply`.
    ```
    Reserved concurrency (session 2 / discord 3 / janitor 1) fails on accounts whose Lambda concurrency limit is 10, because reserving any leaves fewer than 10 unreserved;
    pass `-var session_reserved_concurrency=-1 -var discord_reserved_concurrency=-1 -var janitor_reserved_concurrency=-1` there. An unreserved janitor can overlap itself, which its conditional transitions tolerate.
+   Alerts (a monthly budget and the janitor alarms) go to an e-mail address: copy `infra/main/terraform.tfvars.example` to `terraform.tfvars` and set `alert_email`. AWS mails a confirmation link once; the alerts are not delivered until it is clicked.
 5. Updating the agent or node scripts: `mise run build`, then `terraform apply`. The node picks them up on its next boot; a new agent binary is promoted only after it reaches DynamoDB, otherwise the previous one is restored.
    Replacing the instance itself needs an explicit `terraform apply -replace=aws_instance.vpn` and ends live sessions.
 

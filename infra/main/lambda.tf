@@ -17,7 +17,7 @@ locals {
     SESSION_EXTEND_EVERY = var.session_extend_every
     HANDSHAKE_IDLE       = "${var.handshake_idle_seconds}s"
   }
-  functions = toset(["session", "discord", "janitor", "notify"])
+  functions = toset(["session", "discord", "janitor"])
 }
 
 data "archive_file" "fn" {
@@ -77,23 +77,10 @@ resource "aws_iam_role" "fn" {
   assume_role_policy = data.aws_iam_policy_document.assume_lambda.json
 }
 
-# The notifier only reads the bot settings: it has no reason to touch the table.
 resource "aws_iam_role_policy" "common" {
-  for_each = setsubtract(local.functions, ["notify"])
+  for_each = local.functions
   role     = aws_iam_role.fn[each.key].id
   policy   = data.aws_iam_policy_document.common.json
-}
-
-data "aws_iam_policy_document" "notify" {
-  statement {
-    actions   = ["ssm:GetParameter"]
-    resources = [local.param_arn]
-  }
-}
-
-resource "aws_iam_role_policy" "notify" {
-  role   = aws_iam_role.fn["notify"].id
-  policy = data.aws_iam_policy_document.notify.json
 }
 
 resource "aws_iam_role_policy" "janitor_instance" {
@@ -123,13 +110,11 @@ locals {
     session = var.session_reserved_concurrency
     discord = var.discord_reserved_concurrency
     janitor = var.janitor_reserved_concurrency
-    notify  = -1
   }
   timeout = {
     session = 30
     discord = 30
     janitor = 55
-    notify  = 30
   }
 }
 

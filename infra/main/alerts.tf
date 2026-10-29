@@ -1,4 +1,4 @@
-# Budgets and CloudWatch publish here; a small function posts to the approval channel in Discord.
+# Budgets and CloudWatch publish here and the topic e-mails. Discord is not on this path: a cost or janitor alert must not depend on the thing that may be broken.
 resource "aws_sns_topic" "alerts" {
   name = "gamevpn-alerts"
 }
@@ -24,22 +24,7 @@ resource "aws_sns_topic_policy" "alerts" {
   policy = data.aws_iam_policy_document.alerts_publish.json
 }
 
-resource "aws_lambda_permission" "alerts" {
-  statement_id  = "AllowSNSAlerts"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.fn["notify"].function_name
-  principal     = "sns.amazonaws.com"
-  source_arn    = aws_sns_topic.alerts.arn
-}
-
-resource "aws_sns_topic_subscription" "discord" {
-  topic_arn = aws_sns_topic.alerts.arn
-  protocol  = "lambda"
-  endpoint  = aws_lambda_function.fn["notify"].arn
-}
-
 resource "aws_sns_topic_subscription" "email" {
-  count     = var.alert_email == "" ? 0 : 1
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
   endpoint  = var.alert_email
