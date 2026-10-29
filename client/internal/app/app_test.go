@@ -169,3 +169,29 @@ func TestThereIsNothingToAdoptWhenTheTunnelIsDown(t *testing.T) {
 	assert.False(t, a.Adopt())
 	assert.Equal(t, "", a.State().Phase)
 }
+
+func TestAConnectedLabelShowsHowLongTheTunnelHasBeenUp(t *testing.T) {
+	since := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	st := State{Phase: Connected, Text: "Connected", Since: since}
+
+	assert.Equal(t, "Connected", st.Label(since.Add(30*time.Second)))
+	assert.Equal(t, "Connected · 5m", st.Label(since.Add(5*time.Minute+10*time.Second)))
+	assert.Equal(t, "Connected · 1h 20m", st.Label(since.Add(80*time.Minute)))
+	assert.Equal(t, "Connected · 2h 0m", st.Label(since.Add(2*time.Hour)))
+}
+
+func TestOnlyAConnectedStateGetsTheDuration(t *testing.T) {
+	st := State{Phase: Waiting, Text: "Waiting for approval", Since: time.Now().Add(-time.Hour)}
+
+	assert.Equal(t, "Waiting for approval", st.Label(time.Now()))
+}
+
+func TestAdoptingATunnelKeepsWhenItCameUp(t *testing.T) {
+	a, _, d := rig()
+	since := time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
+	d.set(ipc.Status{State: "up", SessionID: "s1", Since: since})
+
+	require.True(t, a.Adopt())
+
+	assert.Equal(t, since, a.State().Since)
+}

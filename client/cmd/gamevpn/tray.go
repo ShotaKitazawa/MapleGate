@@ -77,13 +77,15 @@ func tray() error {
 		systray.AddSeparator()
 		quit := systray.AddMenuItem("Quit", "")
 
+		label := func(st app.State) string {
+			if st.Text == "" {
+				st.Text = "Not connected"
+			}
+			return st.Label(time.Now())
+		}
 		a.OnChange = func(st app.State) {
 			systray.SetIcon(icons[st.Phase])
-			text := st.Text
-			if text == "" {
-				text = "Not connected"
-			}
-			status.SetTitle(text)
+			status.SetTitle(label(st))
 			busy := st.Phase == app.Waiting || st.Phase == app.Connected
 			if busy {
 				connect.Disable()
@@ -102,6 +104,12 @@ func tray() error {
 		systray.SetIcon(icons[app.Idle])
 		a.Adopt()
 
+		go func() {
+			// the time shown next to Connected has to move on its own
+			for range time.Tick(time.Minute) {
+				status.SetTitle(label(a.State()))
+			}
+		}()
 		go func() {
 			for {
 				select {

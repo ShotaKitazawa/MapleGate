@@ -23,6 +23,20 @@ const (
 type State struct {
 	Phase string
 	Text  string
+	// Since is when the tunnel came up. How long it has been up says more than the session's expiry, which moves while it is in use.
+	Since time.Time
+}
+
+// Label is the text for the menu; a connected state also says how long it has been up.
+func (s State) Label(now time.Time) string {
+	if s.Phase != Connected || s.Since.IsZero() || now.Sub(s.Since) < time.Minute {
+		return s.Text
+	}
+	d := now.Sub(s.Since)
+	if d < time.Hour {
+		return fmt.Sprintf("%s · %dm", s.Text, int(d.Minutes()))
+	}
+	return fmt.Sprintf("%s · %dh %dm", s.Text, int(d.Hours()), int(d.Minutes())%60)
 }
 
 type Sessions interface {
@@ -127,7 +141,7 @@ func (a *App) connect(ctx context.Context, gen int) {
 	}
 	a.mu.Unlock()
 	c := s.Config
-	_, err = a.Daemon.Do(ipc.Request{Op: "up", SessionID: s.ID, Up: &tunnel.Up{
+	st, err := a.Daemon.Do(ipc.Request{Op: "up", SessionID: s.ID, Up: &tunnel.Up{
 		PrivateKey: key.String(), Address: c.Address, ServerKey: c.ServerKey,
 		Endpoint: c.Endpoint, AllowedIPs: c.AllowedIPs, Keepalive: c.Keepalive,
 	}})
@@ -136,7 +150,11 @@ func (a *App) connect(ctx context.Context, gen int) {
 		a.set(gen, State{Phase: Failed, Text: err.Error()})
 		return
 	}
-	a.set(gen, State{Phase: Connected, Text: "Connected"})
+	since := st.Since
+	if since.IsZero() {
+		since = time.Now()
+	}
+	a.set(gen, State{Phase: Connected, Text: "Connected", Since: since})
 	a.hold(ctx, gen, s.ID)
 }
 
@@ -204,7 +222,7 @@ func (a *App) Adopt() bool {
 	if err != nil || st.State != "up" || st.SessionID == "" {
 		return false
 	}
-	ctx, gen := a.begin(State{Phase: Connected, Text: "Connected"})
+	ctx, gen := a.begin(State{Phase: Connected, Text: "Connected", Since: st.Since})
 	a.mu.Lock()
 	a.session = st.SessionID
 	a.mu.Unlock()

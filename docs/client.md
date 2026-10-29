@@ -47,12 +47,12 @@ The privileged half becomes a daemon, `gamevpnd` (a LaunchDaemon on macOS), and 
 - **The tunnel outlives the UI.** A tray app that crashes in the middle of a game must not cut the player. `status` returns the session id the tunnel was started for, so a restarted UI picks the tunnel up again and keeps watching that session.
 - **A tunnel nobody looks after is taken down.** The UI calls `status` every few seconds, and that is also the heartbeat. After 15 minutes without a call the daemon takes the tunnel down. Without this rule a dead UI would leave the tunnel up, its handshakes would keep the session extended, and the node would never stop. The window is long enough for a restart and short enough to bound the cost.
 - **The UI closes the session** at the server (it holds the credentials; the daemon never does). Taking the tunnel down because nobody looks does not close the session; the node closes it as `idle` within about 10 minutes.
-- **Tray**: one Go code base for both systems (`fyne.io/systray`), because maintaining a native UI per system is more than this project can carry. States: signed out, waiting for approval, connected (with the time left), error.
+- **Tray**: one Go code base for both systems (`fyne.io/systray`), because maintaining a native UI per system is more than this project can carry. States: signed out, waiting for approval, connected (with how long it has been up, not the time left: the session is extended while it is in use, so the expiry is always about the same), error.
 - **Installers**: a macOS pkg that installs the two binaries, loads the LaunchDaemon and starts the tray at login; the Windows installer follows the macOS one. Neither is signed or notarized, so the guide for friends says how to get past Gatekeeper and SmartScreen.
 
 ## Remaining work (macOS), found on the first run on a machine
 
-- **Time left in the menu** while connected, and a signed out state with a sign out item.
+- A signed out state with a sign out item.
 - **Say so when the browser is needed.** While waiting for sign in, the menu should tell the person to look at the browser.
 - **Route watcher.** A failed move of the node's route is retried silently; after repeated failures it should be shown or end the tunnel. Check what a sleep and wake does to the WireGuard socket.
 - **Windows**: tunnel (Wintun, routes), service and named pipe, installer, guide.
