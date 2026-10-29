@@ -121,7 +121,7 @@ func (r *Runner) Watch(ctx context.Context, id string) (api.Session, error) {
 
 // Close ends the session at the server. It uses a fresh context so that a Ctrl-C does not cancel the call.
 func (r *Runner) Close(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	_, err := r.API.Delete(ctx, id)
 	return err
