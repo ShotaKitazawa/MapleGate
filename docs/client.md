@@ -52,5 +52,5 @@ The privileged half becomes a daemon, `gamevpnd` (a LaunchDaemon on macOS), and 
 
 ## Remaining work (macOS), found on the first run on a machine
 
-- **Route watcher.** A failed move of the node's route is retried silently; after repeated failures it should be shown or end the tunnel. Check what a sleep and wake does to the WireGuard socket.
+- **Sleep and wake.** Check what it does to the WireGuard socket (M8).
 - **Windows**: tunnel (Wintun, routes), service and named pipe, installer, guide.

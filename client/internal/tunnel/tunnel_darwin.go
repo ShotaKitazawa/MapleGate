@@ -140,6 +140,7 @@ func Run(ctx context.Context, u Up, logf func(format string, a ...any), ready fu
 		ready(iface)
 	}
 
+	var watch routeWatch
 	tick := time.NewTicker(5 * time.Second)
 	defer tick.Stop()
 	for {
@@ -156,11 +157,15 @@ func Run(ctx context.Context, u Up, logf func(format string, a ...any), ready fu
 			logf("the gateway changed to %s, moving the route to the node", firstNonEmpty(now.Via, now.Iface))
 			unpin(epIP, gw)
 			pinnedNow = false
-			if err := pin(epIP, now); err != nil {
+			err = pin(epIP, now)
+			if err == nil {
+				gw, pinnedNow = now, true
+			} else {
 				logf("could not move the route: %v", err)
-				continue
 			}
-			gw, pinnedNow = now, true
+			if watch.failed(err) {
+				return fmt.Errorf("lost the route to the node: %w", err)
+			}
 		}
 	}
 }
