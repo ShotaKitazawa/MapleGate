@@ -33,6 +33,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D22 | S4: an approved session in use is extended and an unused one is not | with `session_ttl` 6m and `session_extend_every` 3m, the expiry moved every 3 minutes past the original 6; after the tunnel was dropped it kept extending until the handshake was 10 minutes old, then closed as `idle`; both values were put back |
 | D23 | S1: a request nobody approves expires at the approval deadline | `expired`, reason `approval timeout`, `msg_synced` true; the Discord message text itself is not yet looked at |
 | D24 | The tunnel cannot reach the node's own services or the VPC | IMDS token request got no answer (it got 200 before the fix), TCP 22 closed, ICMP to 10.66.0.1 and traffic to the internet still work; fixed by the `input` and `forward` rules in `node/nftables.conf` and `http_put_response_hop_limit = 1` |
+| D25 | O1: the notifier posts to the approval channel | `gamevpn-notify` invoked with a test SNS event returned 200 and the message appeared in the channel |
 
 ## Todo
 
@@ -65,7 +66,6 @@ A2 and A3 must be done before release.
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
-| O1 | The notifier posts to the approval channel | invoking `gamevpn-notify` with a test SNS event (done, the function returned 200) puts the test message in Discord | you | safe |
 | O2 | A test budget with a tiny threshold reaches Discord (F3) | lower `monthly_budget_usd` to 0.01 for a moment, a notice appears, put it back | both | reversible |
 | O3 | The janitor alarm fires and recovers | disable the schedule for 6 minutes: `gamevpn-janitor-silent` posts ALARM, then recovered after enabling it | both | reversible |
 | O4 | After a session that was approved ends, its Discord message says how it ended | the message changes from approved to closed within about a minute of Disconnect | you | safe |
