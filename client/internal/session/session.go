@@ -43,6 +43,16 @@ func (r *Runner) sleep(ctx context.Context, d time.Duration) error {
 	}
 }
 
+func describe(status string) string {
+	switch status {
+	case "pending":
+		return "Waiting for approval in Discord"
+	case "provisioning":
+		return "Approved, starting the VPN node"
+	}
+	return "status: " + status
+}
+
 // Request asks for a session and waits until it is active. A session left behind by an earlier run cannot be used
 // because its key is gone, so it is closed and the request made again, once.
 func (r *Runner) Request(ctx context.Context, publicKey string, wait time.Duration) (api.Session, error) {
@@ -62,14 +72,14 @@ func (r *Runner) Request(ctx context.Context, publicKey string, wait time.Durati
 			return s, fmt.Errorf("another session %s is still open", s.ID)
 		}
 	}
-	r.say("session %s: approve it in Discord", s.ID)
+	r.say("session %s", s.ID)
 
 	deadline := time.Now().Add(wait)
 	interval := 2 * time.Second
 	last := ""
 	for {
 		if s.Status != last {
-			r.say("status: %s", s.Status)
+			r.say("%s", describe(s.Status))
 			last = s.Status
 		}
 		if s.Terminal() {

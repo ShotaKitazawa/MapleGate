@@ -143,6 +143,7 @@ func (a *App) connect(ctx context.Context, gen int) {
 	}
 	a.mu.Unlock()
 	c := s.Config
+	a.Say("Bringing the tunnel up")
 	st, err := a.Daemon.Do(ipc.Request{Op: "up", SessionID: s.ID, Up: &tunnel.Up{
 		PrivateKey: key.String(), Address: c.Address, ServerKey: c.ServerKey,
 		Endpoint: c.Endpoint, AllowedIPs: c.AllowedIPs, Keepalive: c.Keepalive,

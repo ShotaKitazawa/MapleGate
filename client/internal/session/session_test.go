@@ -56,6 +56,20 @@ func TestRequestWaitsThroughPendingAndProvisioningUntilActive(t *testing.T) {
 	assert.Equal(t, "10.66.0.2/32", s.Config.Address)
 }
 
+func TestRequestSaysWhatItIsWaitingFor(t *testing.T) {
+	f := &fake{creates: []api.Session{{ID: "s", Status: "pending"}},
+		gets: []any{api.Session{ID: "s", Status: "provisioning"}, active}}
+	var said []string
+	r := runner(f)
+	r.Progress = func(m string) { said = append(said, m) }
+
+	_, err := r.Request(context.Background(), "PUB", time.Minute)
+
+	require.NoError(t, err)
+	assert.Contains(t, said, "Waiting for approval in Discord")
+	assert.Contains(t, said, "Approved, starting the VPN node")
+}
+
 func TestRequestFailsWhenTheSessionEndsFirst(t *testing.T) {
 	f := &fake{creates: []api.Session{{ID: "s", Status: "pending"}}, gets: []any{api.Session{ID: "s", Status: "denied"}}}
 
