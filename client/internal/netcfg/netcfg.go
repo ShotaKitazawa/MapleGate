@@ -15,10 +15,11 @@ type Gateway struct {
 }
 
 // ParseDefault reads `netstat -rn -f inet` and returns the first default route that is not through skip.
+// An interface-scoped default (flag I, such as a VM bridge's) is not where the rest of the traffic goes, and taking it pinned the node's route into a dead end.
 func ParseDefault(out, skip string) (Gateway, error) {
 	for _, l := range strings.Split(out, "\n") {
 		f := strings.Fields(l)
-		if len(f) < 4 || f[0] != "default" || f[3] == skip {
+		if len(f) < 4 || f[0] != "default" || f[3] == skip || strings.Contains(f[2], "I") {
 			continue
 		}
 		g := Gateway{Iface: f[3]}

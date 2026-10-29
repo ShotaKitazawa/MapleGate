@@ -39,6 +39,15 @@ func TestParseDefaultOnLinkHasNoGateway(t *testing.T) {
 	assert.Equal(t, Gateway{Iface: "en0"}, g)
 }
 
+func TestParseDefaultIgnoresAnInterfaceScopedDefault(t *testing.T) {
+	out := "default            link#29            UCSIg           bridge100      !\ndefault            192.168.0.1        UGScg                 en0\n"
+
+	g, err := ParseDefault(out, "")
+
+	require.NoError(t, err)
+	assert.Equal(t, Gateway{Via: "192.168.0.1", Iface: "en0"}, g)
+}
+
 func TestParseDefaultWithNoDefaultIsAnError(t *testing.T) {
 	_, err := ParseDefault("127                127.0.0.1          UCS                   lo0\n", "")
 
