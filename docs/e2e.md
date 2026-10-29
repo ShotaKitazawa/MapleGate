@@ -1,6 +1,6 @@
 # End-to-end checks
 
-Real AWS (us-west-2), real Discord, real WireGuard. The integration tests (`mise run test-integration`) stand in for most of this; what is listed here is what they cannot prove.
+Real AWS (us-west-2), real Discord, real WireGuard. Account, user and address values are left out; the figures that remain are measurements the settings were chosen from. The integration tests (`mise run test-integration`) stand in for most of this; what is listed here is what they cannot prove.
 
 Status: **done** = observed in the real environment; **todo** = not yet. Who: *claude* runs it, *you* acts in Discord, the console or on a machine, *both* needs the two.
 Risk: **safe** changes nothing lasting, **reversible** changes a setting and puts it back, **destructive** needs an explicit go-ahead each time.
@@ -21,7 +21,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D10 | Pressing a button on a request whose session is already closed changes nothing | the press hit a session closed seconds earlier; no live session remained (catalogue D5 and D6) |
 | D11 | Posting fails: a wrong `channel_id` gives 502, the session is `failed` with `discord unavailable`, and after restoring the value the next request is accepted (the slot was free) | recovery took about 10 minutes because the wrong value was cached again just before the restore |
 | D12 | A second request while a session is live returns that session | 409 with the same `session_id` |
-| D13 | The user name stored on a session is the Identity Center user name | META `user` = the first player |
+| D13 | The user name stored on a session is the Identity Center user name | META `user` = the first player's Identity Center user name |
 | D14 | Log retention is set | 14 days on all three groups |
 | D15 | N1: the agent killed with SIGKILL during a live session | systemd restarted it (new PID), the peer stayed, 81 pings with no loss, the session stayed `active` |
 | D16 | N2: the instance rebooted during a live session | the tunnel dropped for about 21 seconds and came back on its own with the same key; GET stayed `active` because the reboot was shorter than the 2 minute heartbeat window |
@@ -37,9 +37,9 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D26 | P4: `kill -9` of the app | the tunnel stayed up, launchd started the app again, and it showed Connected with the original start time; the diagnostics were taken from it |
 | D27 | P8: Copy diagnostics | version, macOS, tunnel state, routes (the node on the real gateway, halves into `utun8`, the VM bridge ignored), daemon log; no token or key. Other devices' MAC addresses were in the routes and are now dropped |
 | D28 | C1: uninstalling with the tunnel up | the tunnel was gone afterwards and nothing of ours was left |
-| D29 | F7, first measurement (2026-10-29, Mac in Japan, 100 MB object in S3 us-west-2) | with the tunnel: one stream 2.8 and 4.4 MB/s, four streams 5.6 MB/s (45 Mbps); without it: one stream 3.9 and 5.2 MB/s, four streams 12.3 MB/s (99 Mbps). Round trip to the node 121 ms, and 5 ms more to a host beyond it. The node's CPU stayed under 3% and its credits did not fall (balance 43 and rising, no surplus), so the CPU is not the limit. Published figures: burst up to 5 Gbps (AWS); baseline 0.032 Gbps (third party only, unconfirmed) |
+| D29 | F7, first measurement (2026-10-29), one author's line: a Mac in Japan, a 100 MB object in S3 us-west-2. The figures are what the per-peer limit of about 10 Mbps (O6, `node/nftables.conf`) was set against; they depend on the line and the time of day and are not a guarantee | with the tunnel: one stream 2.8 and 4.4 MB/s, four streams 5.6 MB/s (45 Mbps); without it: one stream 3.9 and 5.2 MB/s, four streams 12.3 MB/s (99 Mbps). Round trip to the node 121 ms, and 5 ms more to a host beyond it. The node's CPU stayed under 3% and its credits did not fall (balance 43 and rising, no surplus), so the CPU is not the limit. Published figures: burst up to 5 Gbps (AWS); baseline 0.032 Gbps (third party only, unconfirmed) |
 | D30 | A1 and A2: who may call the API | a `players` user creates, reads and deletes their own session (D1 and every tray run). Outside `players`: no credentials (`GetRoleCredentials` is `ForbiddenException: No access` for a second Identity Center user after leaving the group); an unsigned call gets 403 from AWS; the admin IAM user gets 403 `forbidden` from the handler; and a player cannot read DynamoDB directly (`AccessDeniedException`) |
-| D31 | A3: a user cannot read or delete another user's session | with the second user (`test`, in `players`), GET and DELETE of the first player's pending session both gave 404 and the session stayed `pending`; the first player read it fine |
+| D31 | A3: a user cannot read or delete another user's session | with a second user (in `players`), GET and DELETE of the first player's pending session both gave 404 and the session stayed `pending`; the first player read it fine |
 | D32 | F1 and F2: the game through the tunnel | the game logged in and played well enough through the full tunnel (F1); the 25 MB and 100 MB downloads of the speed test ran through the tunnel at the issued MTU without stalling (F2) |
 | D33 | By hand on macOS, with the first builds: M1 (first `up` signs in, is approved, brings the tunnel up), M2 (a second `up` opens no browser), P2 (Connect from the menu; `curl ifconfig.io` shows the node), P3 (Quit disconnects), P5 (Disconnect leaves no route or interface), P7 (the uninstall script left nothing); later builds repeat them | each as its row said |
 

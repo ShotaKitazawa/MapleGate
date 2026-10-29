@@ -1,6 +1,6 @@
 # Client
 
-The purpose: friends play the game with the game's traffic going through the us-west-2 node, without knowing AWS. The server side is done and checked (`docs/e2e.md`); this is the design of the client and what is left of it.
+The purpose: friends play an online game with its traffic going through a node in one AWS region (us-west-2 here), without knowing AWS. The server side is done and checked (`docs/e2e.md`); this is the design of the client and what is left of it.
 
 ## Phases
 
