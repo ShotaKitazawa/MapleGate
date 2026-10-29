@@ -60,7 +60,6 @@ A2 and A3 must be done before release.
 | N5 | Agent that never stops the node (set `IDLE_STOP` huge in `/etc/gamevpn/env`, restart agent) | Discord alert "no live session" about 35 minutes after the last session | both | reversible |
 | N6 | A fresh agent binary is promoted after its first healthy tick; a broken one is rolled back to `agent.good` | `cmp agent agent.good` after a normal boot; a deliberately broken build ends up on the old binary | both | reversible |
 
-Not planned: egress cut, narrowed DynamoDB policy, instance replacement, start breaker, a deleted approval message. They are decided when they happen; the logic is covered by the unit and model tests.
 
 ### Cost and operations
 
