@@ -38,18 +38,10 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D27 | P8: Copy diagnostics | version, macOS, tunnel state, routes (the node on the real gateway, halves into `utun8`, the VM bridge ignored), daemon log; no token or key. Other devices' MAC addresses were in the routes and are now dropped |
 | D28 | C1: uninstalling with the tunnel up | the tunnel was gone afterwards and nothing of ours was left |
 | D29 | F7, first measurement (2026-10-29, Mac in Japan, 100 MB object in S3 us-west-2) | with the tunnel: one stream 2.8 and 4.4 MB/s, four streams 5.6 MB/s (45 Mbps); without it: one stream 3.9 and 5.2 MB/s, four streams 12.3 MB/s (99 Mbps). Round trip to the node 121 ms, and 5 ms more to a host beyond it. The node's CPU stayed under 3% and its credits did not fall (balance 43 and rising, no surplus), so the CPU is not the limit. Published figures: burst up to 5 Gbps (AWS); baseline 0.032 Gbps (third party only, unconfirmed) |
+| D30 | A1 and A2: who may call the API | a `players` user creates, reads and deletes their own session (D1 and every tray run). Outside `players`: no credentials (`GetRoleCredentials` is `ForbiddenException: No access` for a second Identity Center user after leaving the group); an unsigned call gets 403 from AWS; the admin IAM user gets 403 `forbidden` from the handler; and a player cannot read DynamoDB directly (`AccessDeniedException`) |
+| D31 | A3: a user cannot read or delete another user's session | with the second user (`test`, in `players`), GET and DELETE of the first player's pending session both gave 404 and the session stayed `pending`; the first player read it fine |
 
 ## Todo
-
-### Access control (needs a second Identity Center user in `players`)
-
-A2 and A3 must be done before release.
-
-| ID | What | Pass when | Who | Risk |
-|---|---|---|---|---|
-| A1 | A `players` user can create, read and delete their own session | 202, 200, 200 with the permission set `gamevpn-player` only | both | safe |
-| A2 | An Identity Center user outside `players` is refused | 403 from AWS | both | safe |
-| A3 | A user cannot read or delete another user's session | 404 | both | safe |
 
 ### Session edges
 
