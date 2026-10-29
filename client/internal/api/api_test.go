@@ -50,6 +50,7 @@ func TestConflictReturnsTheExistingSession(t *testing.T) {
 	s, err := newClient(srv).Create(context.Background(), "PUB")
 	require.NoError(t, err)
 	assert.Equal(t, "existing", s.ID)
+	assert.True(t, s.Conflict)
 }
 
 func TestForbiddenIsAnError(t *testing.T) {

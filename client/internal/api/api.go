@@ -39,6 +39,8 @@ type Session struct {
 	Status string  `json:"status"`
 	Error  string  `json:"error"`
 	Config *Config `json:"config"`
+	// Conflict is set when the server answered 409: this is an earlier session, not the one just asked for.
+	Conflict bool `json:"-"`
 }
 
 // Terminal reports whether the session has ended; anything else, including an API error, must not drop a tunnel.
@@ -96,10 +98,11 @@ func (c *Client) do(ctx context.Context, method, path string, body []byte) (Sess
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return Session{}, fmt.Errorf("decode response: %w", err)
 	}
+	s.Conflict = resp.StatusCode == http.StatusConflict
 	return s, nil
 }
 
-// Create returns the existing session id on 409, so a lost response can be retried safely.
+// Create returns the existing session on 409 with Conflict set; the caller cannot use it unless it holds that session's key.
 func (c *Client) Create(ctx context.Context, publicKey string) (Session, error) {
 	b, _ := json.Marshal(map[string]string{"public_key": publicKey})
 	return c.do(ctx, http.MethodPost, "/session", b)

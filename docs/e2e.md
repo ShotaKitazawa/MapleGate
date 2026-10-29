@@ -71,6 +71,20 @@ A2 and A3 must be done before release.
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
 
+## Client on macOS (Phase 4), by hand
+
+`mise run build`, then `build/gamevpn up` in a terminal. Settings are in `~/Library/Application Support/gamevpn/config.json`.
+
+| ID | What | Pass when | Who |
+|---|---|---|---|
+| M1 | First `up`: sign in, approval, tunnel | the browser opens once, Discord asks, `curl ifconfig.io` shows the node's address | both |
+| M2 | A second `up` right after | no browser, no sign in prompt | you |
+| M3 | Ctrl-C | the session is `closed`, `netstat -rn` shows no route of ours and no leftover `utun` address | you |
+| M4 | `kill -9` of the privileged `gamevpn tunnel` and of `gamevpn up` | the next `up` starts clean; `/var/run/gamevpn-tunnel.json` is gone after a normal end | you |
+| M5 | Wi-Fi switch during a session | traffic recovers within about 10 seconds, or ends with a message | you |
+| M6 | `curl -6 ifconfig.io` | fails or shows the node's address, never the local one | you |
+| M7 | A session left open by an earlier run | `up` closes it and asks again | you |
+
 ## Full end-to-end, after the client exists (Phase 4 onward)
 
 These need the real client and a real machine, so they wait until it is built. The server side is covered above.
