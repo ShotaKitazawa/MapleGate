@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"image"
 	"image/color"
-	"image/png"
 	"os"
 	"os/exec"
 	"runtime"
@@ -17,6 +14,7 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/client/internal/api"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/app"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/diag"
+	"github.com/ShotaKitazawa/MapleGate/client/internal/icon"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/ipc"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/session"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/settings"
@@ -24,28 +22,14 @@ import (
 
 const daemonSocket = "/var/run/maplegated.sock"
 
-// dot draws the tray icon: a filled circle, because the state is all it has to say.
-func dot(c color.RGBA) []byte {
-	const n = 22
-	img := image.NewRGBA(image.Rect(0, 0, n, n))
-	for y := 0; y < n; y++ {
-		for x := 0; x < n; x++ {
-			dx, dy := float64(x)-10.5, float64(y)-10.5
-			if dx*dx+dy*dy <= 8*8 {
-				img.Set(x, y, c)
-			}
-		}
-	}
-	var b bytes.Buffer
-	_ = png.Encode(&b, img)
-	return b.Bytes()
-}
+// 32 pixels because the menu bar draws it 16 points high, twice that on a Retina screen
+func leaf(c color.RGBA) []byte { return icon.Leaf(32, c) }
 
 var icons = map[string][]byte{
-	app.Idle:      dot(color.RGBA{128, 128, 128, 255}),
-	app.Waiting:   dot(color.RGBA{230, 160, 0, 255}),
-	app.Connected: dot(color.RGBA{40, 170, 70, 255}),
-	app.Failed:    dot(color.RGBA{210, 50, 50, 255}),
+	app.Idle:      leaf(color.RGBA{128, 128, 128, 255}),
+	app.Waiting:   leaf(color.RGBA{230, 160, 0, 255}),
+	app.Connected: leaf(color.RGBA{40, 170, 70, 255}),
+	app.Failed:    leaf(color.RGBA{210, 50, 50, 255}),
 }
 
 func notify(title, msg string) {
