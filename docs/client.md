@@ -52,7 +52,6 @@ The privileged half becomes a daemon, `gamevpnd` (a LaunchDaemon on macOS), and 
 
 ## Remaining work (macOS), found on the first run on a machine
 
-- **Quit disconnects.** Quit from the menu takes the tunnel down, closes the session, then exits. A crash still leaves the tunnel to the daemon's 15 minute rule, so the player is not cut in the middle of a game; only a deliberate Quit ends it.
 - **A way back after Quit.** The tray is a bare binary, so nothing in Finder or Spotlight starts it again. Ship a small `MapleGate.app` in `/Applications` whose only job is to start the tray (`launchctl kickstart`).
 - **Time left in the menu** while connected, and a signed out state with a sign out item.
 - **Say so when the browser is needed.** While waiting for sign in, the menu should tell the person to look at the browser.

@@ -110,7 +110,9 @@ func tray() error {
 				case <-disconnect.ClickedCh:
 					a.Disconnect()
 				case <-quit.ClickedCh:
-					// quitting the app leaves a tunnel in use alone; Disconnect is the way to end it
+					// a crash leaves the tunnel to the daemon's idle rule, but a deliberate Quit must not leave one nobody can see
+					status.SetTitle("Disconnecting...")
+					a.Disconnect()
 					systray.Quit()
 					return
 				}
