@@ -53,6 +53,7 @@ run = """
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/session &&
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/discord &&
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/janitor &&
+  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/notify &&
   GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./node/agent/cmd/vpn-agent &&
   go build -o /dev/null ./client/cmd/gamevpn-cli &&
   go build -o /dev/null ./client/cmd/gamevpn &&
@@ -91,7 +92,7 @@ run = """
 
 [tasks.build]
 run = """
-  for f in session discord janitor; do
+  for f in session discord janitor notify; do
     mkdir -p build/$f &&
     GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o build/$f/bootstrap ./lambda/cmd/$f || exit 1
   done &&
