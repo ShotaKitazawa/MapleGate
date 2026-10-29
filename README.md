@@ -126,3 +126,7 @@ The live checks still open are the Todo list in [docs/e2e.md](docs/e2e.md).
 | SSM Parameter Store, Identity Center, the client | not covered |
 
 The real `vpn-agent`, the store, the handlers and the janitor are the real code. Covered: approve to active to delete with a ping through the tunnel, deny, idle power-off and restart, hard node stop, and DynamoDB unreachable from the node (blind mode, then catching up).
+
+## License
+
+Apache-2.0, see [LICENSE](LICENSE). Copyright 2026 ShotaKitazawa.
