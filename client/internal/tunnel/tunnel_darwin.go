@@ -30,6 +30,9 @@ func sh(args []string) (string, error) {
 	if err != nil {
 		return string(out), fmt.Errorf("%s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
+	if args[0] == "route" && netcfg.RouteFailed(string(out)) {
+		return string(out), fmt.Errorf("%s: %s", strings.Join(args, " "), strings.TrimSpace(string(out)))
+	}
 	return string(out), nil
 }
 

@@ -71,9 +71,18 @@ func family(prefix string) string {
 // EndpointRoute pins the node's address to the original gateway so the tunnel's own packets do not loop into it.
 func EndpointRoute(verb, endpointIP string, gw Gateway) []string {
 	if gw.Via != "" {
-		return []string{"route", "-q", "-n", verb, "-inet", endpointIP + "/32", gw.Via}
+		return []string{"route", "-n", verb, "-inet", endpointIP + "/32", gw.Via}
 	}
-	return []string{"route", "-q", "-n", verb, "-inet", endpointIP + "/32", "-interface", gw.Iface}
+	return []string{"route", "-n", verb, "-inet", endpointIP + "/32", "-interface", gw.Iface}
+}
+
+// ULA is the unique-local address given to the interface so that IPv6 routes can point at it.
+const ULA = "fd6d:6170:6c65::2/128"
+
+// RouteFailed reports whether the output of route(8) is an error. It exits 0 even when it fails, so the exit
+// status cannot be trusted.
+func RouteFailed(out string) bool {
+	return strings.Contains(out, "route: writing to routing socket")
 }
 
 // Up lists the commands that give the interface its address and send the prefixes into it.
@@ -87,7 +96,14 @@ func Up(iface, address string, routes []string) ([][]string, error) {
 		{"ifconfig", iface, "up"},
 	}
 	for _, r := range routes {
-		cmds = append(cmds, []string{"route", "-q", "-n", "add", family(r), r, "-interface", iface})
+		if family(r) == "-inet6" {
+			// without an IPv6 address the interface refuses IPv6 routes; the node drops the traffic, so the value is arbitrary
+			cmds = append(cmds, []string{"ifconfig", iface, "inet6", ULA, "alias"})
+			break
+		}
+	}
+	for _, r := range routes {
+		cmds = append(cmds, []string{"route", "-n", "add", family(r), r, "-interface", iface})
 	}
 	return cmds, nil
 }
@@ -97,7 +113,7 @@ func Up(iface, address string, routes []string) ([][]string, error) {
 func Down(iface string, routes []string) [][]string {
 	var cmds [][]string
 	for _, r := range routes {
-		cmds = append(cmds, []string{"route", "-q", "-n", "delete", family(r), r, "-interface", iface})
+		cmds = append(cmds, []string{"route", "-n", "delete", family(r), r, "-interface", iface})
 	}
 	return cmds
 }

@@ -64,9 +64,25 @@ func TestUpAddsTheAddressThenEveryRoute(t *testing.T) {
 	assert.Equal(t, [][]string{
 		{"ifconfig", "utun5", "inet", "10.66.0.2/32", "10.66.0.2", "alias"},
 		{"ifconfig", "utun5", "up"},
-		{"route", "-q", "-n", "add", "-inet", "0.0.0.0/1", "-interface", "utun5"},
-		{"route", "-q", "-n", "add", "-inet6", "::/1", "-interface", "utun5"},
+		{"ifconfig", "utun5", "inet6", ULA, "alias"},
+		{"route", "-n", "add", "-inet", "0.0.0.0/1", "-interface", "utun5"},
+		{"route", "-n", "add", "-inet6", "::/1", "-interface", "utun5"},
 	}, cmds)
+}
+
+func TestUpGivesTheInterfaceAnIPv6AddressBeforeAnIPv6Route(t *testing.T) {
+	cmds, err := Up("utun5", "10.66.0.2/32", []string{"0.0.0.0/1", "::/1", "8000::/1"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"ifconfig", "utun5", "inet6", ULA, "alias"}, cmds[2])
+	assert.Equal(t, []string{"route", "-n", "add", "-inet", "0.0.0.0/1", "-interface", "utun5"}, cmds[3])
+	assert.Len(t, cmds, 6)
+}
+
+func TestRouteFailedSeesAnErrorThatCameWithExitStatusZero(t *testing.T) {
+	assert.True(t, RouteFailed("route: writing to routing socket: Network is unreachable\nadd net ::/1: gateway utun8: Network is unreachable\n"))
+	assert.False(t, RouteFailed("add net 0.0.0.0/1: gateway utun8\n"))
+	assert.False(t, RouteFailed(""))
 }
 
 func TestUpRejectsABadAddress(t *testing.T) {
@@ -77,14 +93,14 @@ func TestUpRejectsABadAddress(t *testing.T) {
 
 func TestDownDeletesWhatUpAdded(t *testing.T) {
 	assert.Equal(t, [][]string{
-		{"route", "-q", "-n", "delete", "-inet", "0.0.0.0/1", "-interface", "utun5"},
+		{"route", "-n", "delete", "-inet", "0.0.0.0/1", "-interface", "utun5"},
 	}, Down("utun5", []string{"0.0.0.0/1"}))
 }
 
 func TestTheEndpointStaysOnTheOriginalGateway(t *testing.T) {
-	assert.Equal(t, []string{"route", "-q", "-n", "add", "-inet", "1.2.3.4/32", "192.168.1.1"},
+	assert.Equal(t, []string{"route", "-n", "add", "-inet", "1.2.3.4/32", "192.168.1.1"},
 		EndpointRoute("add", "1.2.3.4", Gateway{Via: "192.168.1.1", Iface: "en0"}))
-	assert.Equal(t, []string{"route", "-q", "-n", "delete", "-inet", "1.2.3.4/32", "-interface", "en0"},
+	assert.Equal(t, []string{"route", "-n", "delete", "-inet", "1.2.3.4/32", "-interface", "en0"},
 		EndpointRoute("delete", "1.2.3.4", Gateway{Iface: "en0"}))
 }
 
