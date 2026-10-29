@@ -37,9 +37,8 @@ type Backend interface {
 
 type Server struct {
 	Backend Backend
-	// Authorize decides from the peer's uid whether to serve it.
-	Authorize func(uid uint32) bool
-	PeerUID   func(net.Conn) (uint32, error)
+	// Allow decides from the connection itself, with what the operating system says of the peer, whether to serve it.
+	Allow func(net.Conn) bool
 }
 
 type reply struct {
@@ -66,8 +65,7 @@ func (s *Server) one(c net.Conn) {
 	defer c.Close()
 	_ = c.SetDeadline(time.Now().Add(10 * time.Second))
 	enc := json.NewEncoder(c)
-	uid, err := s.PeerUID(c)
-	if err != nil || !s.Authorize(uid) {
+	if !s.Allow(c) {
 		_ = enc.Encode(reply{Err: "not allowed"})
 		return
 	}
@@ -103,7 +101,7 @@ func (s *Server) one(c net.Conn) {
 type Client struct{ Path string }
 
 func (c Client) Do(req Request) (Status, error) {
-	conn, err := net.DialTimeout("unix", c.Path, 3*time.Second)
+	conn, err := dial(c.Path)
 	if err != nil {
 		return Status{}, fmt.Errorf("the VPN service is not running: %w", err)
 	}

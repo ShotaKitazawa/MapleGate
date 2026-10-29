@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,30 +16,34 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/client/internal/tunnel"
 )
 
+// set by the Windows build, where the daemon is a service
+var runAsService func(func(ctx context.Context) error) error
+
 func main() {
-	sock := flag.String("socket", "/var/run/maplegated.sock", "path of the Unix socket")
+	sock := flag.String("socket", defaultSocket, "where the tray app connects (a Unix socket path, or a pipe name on Windows)")
 	orphan := flag.Duration("orphan", 15*time.Minute, "take the tunnel down after this long without a call")
 	flag.Parse()
-	if err := run(*sock, *orphan); err != nil {
+
+	var err error
+	if runAsService != nil && isService() {
+		err = runAsService(func(ctx context.Context) error { return run(ctx, *sock, *orphan) })
+	} else {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		err = run(ctx, *sock, *orphan)
+		stop()
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 }
 
-func run(sock string, orphan time.Duration) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	_ = os.Remove(sock)
-	l, err := net.Listen("unix", sock)
+func run(ctx context.Context, sock string, orphan time.Duration) error {
+	l, cleanup, err := listen(sock)
 	if err != nil {
 		return err
 	}
-	// anyone may connect to the file; who is served is decided from the peer's uid
-	if err := os.Chmod(sock, 0o666); err != nil {
-		return err
-	}
-	defer os.Remove(sock)
+	defer cleanup()
 
 	m := &daemon.Manager{Orphan: orphan,
 		Run: func(ctx context.Context, u tunnel.Up, ready func(string)) error {
@@ -49,7 +52,7 @@ func run(sock string, orphan time.Duration) error {
 	go m.Watch(ctx, 30*time.Second)
 	defer m.Down()
 
-	s := &ipc.Server{Backend: m, Authorize: daemon.Allowed, PeerUID: daemon.PeerUID}
+	s := &ipc.Server{Backend: m, Allow: daemon.AllowConn}
 	log.Printf("listening on %s", sock)
 	return s.Serve(ctx, l)
 }

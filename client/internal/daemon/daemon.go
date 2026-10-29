@@ -120,12 +120,3 @@ func (m *Manager) Watch(ctx context.Context, interval time.Duration) {
 		}
 	}
 }
-
-// Allowed serves root and whoever is at the console, and nobody else.
-func Allowed(uid uint32) bool {
-	if uid == 0 {
-		return true
-	}
-	owner, err := ConsoleOwner()
-	return err == nil && owner == uid
-}

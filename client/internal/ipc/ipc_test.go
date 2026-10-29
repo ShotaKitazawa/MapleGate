@@ -39,7 +39,7 @@ func serve(t *testing.T, authorize func(uint32) bool) (Client, *backend) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	s := &Server{Backend: b, Authorize: authorize, PeerUID: func(net.Conn) (uint32, error) { return 501, nil }}
+	s := &Server{Backend: b, Allow: func(net.Conn) bool { return authorize(501) }}
 	go func() { _ = s.Serve(ctx, l) }()
 	return Client{Path: l.Addr().String()}, b
 }

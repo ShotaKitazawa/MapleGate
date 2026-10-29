@@ -48,3 +48,18 @@ func ConsoleOwner() (uint32, error) {
 	}
 	return st.Uid, nil
 }
+
+// AllowConn serves root and whoever is at the console.
+func AllowConn(c net.Conn) bool {
+	uid, err := PeerUID(c)
+	return err == nil && Allowed(uid)
+}
+
+// Allowed serves root and whoever is at the console, and nobody else.
+func Allowed(uid uint32) bool {
+	if uid == 0 {
+		return true
+	}
+	owner, err := ConsoleOwner()
+	return err == nil && owner == uid
+}
