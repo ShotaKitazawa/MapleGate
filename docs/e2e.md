@@ -17,7 +17,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D6 | The Discord endpoint accepts Discord's signed PING and the button signatures | endpoint saved, buttons worked |
 | D7 | An idle node powers itself off, and a later session starts it again | stopped 961 seconds (about 16 minutes) after the last session closed: 15 minutes of idle plus the agent tick and shutdown |
 | D8 | The public IP changes across stop and start and GET returns the current one | two sessions, two endpoints |
-| D9 | Posting the approval message works (bot token, channel id, permissions) and the message is updated with the outcome | `msg_synced` true after close |
+| D9 | Posting the approval message works (bot token, channel id, permissions) and the message is updated with the outcome | the first message of a session turned from approved to closed after Disconnect (D25); an earlier reading of `msg_synced` true at approval time was not evidence |
 | D10 | Pressing a button on a request whose session is already closed changes nothing | the press hit a session closed seconds earlier; no live session remained (catalogue D5 and D6) |
 | D11 | Posting fails: a wrong `channel_id` gives 502, the session is `failed` with `discord unavailable`, and after restoring the value the next request is accepted (the slot was free) | recovery took about 10 minutes because the wrong value was cached again just before the restore |
 | D12 | A second request while a session is live returns that session | 409 with the same `session_id` |
@@ -33,6 +33,10 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | D22 | S4: an approved session in use is extended and an unused one is not | with `session_ttl` 6m and `session_extend_every` 3m, the expiry moved every 3 minutes past the original 6; after the tunnel was dropped it kept extending until the handshake was 10 minutes old, then closed as `idle`; both values were put back |
 | D23 | S1: a request nobody approves expires at the approval deadline | `expired`, reason `approval timeout`, `msg_synced` true; the Discord message text itself is not yet looked at |
 | D24 | The tunnel cannot reach the node's own services or the VPC | IMDS token request got no answer (it got 200 before the fix), TCP 22 closed, ICMP to 10.66.0.1 and traffic to the internet still work; fixed by the `input` and `forward` rules in `node/nftables.conf` and `http_put_response_hop_limit = 1` |
+| D25 | O4: after a session that was approved ends, its Discord message says how it ended | the message changed from approved to closed after Disconnect from the menu |
+| D26 | P4: `kill -9` of the app | the tunnel stayed up, launchd started the app again, and it showed Connected with the original start time; the diagnostics were taken from it |
+| D27 | P8: Copy diagnostics | version, macOS, tunnel state, routes (the node on the real gateway, halves into `utun8`, the VM bridge ignored), daemon log; no token or key. Other devices' MAC addresses were in the routes and are now dropped |
+| D28 | C1: uninstalling with the tunnel up | the tunnel was gone afterwards and nothing of ours was left |
 
 ## Todo
 
@@ -65,8 +69,7 @@ A2 and A3 must be done before release.
 
 | ID | What | Pass when | Who | Risk |
 |---|---|---|---|---|
-| O2 | A test budget with a tiny threshold sends its mail (F3) | lower `monthly_budget_usd` to 0.01 for a moment, a mail arrives, put it back | both | reversible |
-| O4 | After a session that was approved ends, its Discord message says how it ended | the message changes from approved to closed within about a minute of Disconnect | you | safe |
+| O2 | A test budget with a tiny threshold sends its mail (F3) | lower `monthly_budget_usd` to 0.01 for a moment, a mail arrives, put it back | both | reversible. Lowered at 2026-10-29 20:41 JST; **put it back to 10 when the mail has arrived** |
 
 ### The game
 
@@ -98,8 +101,6 @@ Build with `client/packaging/macos/build-pkg.sh <settings file>`; install on a m
 | P2 | Connect from the menu | browser once, approval, green dot, a notice, the node's address from `curl ifconfig.io` | both |
 | P3 | Quit the app while connected | the tunnel is taken down and the session closed before the dot disappears; `curl ifconfig.io` shows your own address | you |
 | P3b | Open MapleGate from Spotlight after a Quit | the dot comes back; opening it while it runs starts no second one | you |
-| P4 | Kill the app (`kill -9`) | the tunnel stays up and launchd starts the app again, which shows Connected with the time it has been up; Quit does not bring it back | you |
-| P8 | Menu, Copy diagnostics, then paste into a text editor | the text has the version, the macOS version, the tunnel state, the routes, the daemon log and the recent events, and no token or key | you |
 | P4b | Stop the app for good (`launchctl bootout gui/$(id -u)/com.maplegate.tray`, then `kill -9`) | the tunnel goes down after 15 minutes; the node closes the session as `idle` | you |
 | P5 | Disconnect from the menu | session `closed`, no route left, `curl ifconfig.io` shows your own address | you |
 | P6 | The daemon refuses another user | a second macOS account (or `sudo -u`) gets "not allowed" from the socket | you |
