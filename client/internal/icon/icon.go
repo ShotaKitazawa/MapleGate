@@ -76,24 +76,24 @@ func Leaf(size int, c color.RGBA) []byte {
 	return encode(img)
 }
 
-// App is a white maple leaf on a red rounded square, for the app bundle.
+// App is a white maple leaf on a blue rounded square, for the app bundle. Blue because grey, amber, green and red already mean a state.
 func App(size int) []byte {
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	red, white := color.RGBA{200, 40, 40, 255}, color.RGBA{255, 255, 255, 255}
+	base, white := color.RGBA{45, 105, 215, 255}, color.RGBA{255, 255, 255, 255}
 	s := float64(size)
 	r := s * 0.22
-	pts := leaf(s, 0.2)
+	pts := leaf(s, 0.15)
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			if !roundedInside(float64(x)+0.5, float64(y)+0.5, s, r) {
 				continue
 			}
-			img.SetRGBA(x, y, red)
+			img.SetRGBA(x, y, base)
 			if a := coverage(pts, x, y); a > 0 {
 				img.SetRGBA(x, y, color.RGBA{
-					uint8(float64(red.R)*(1-a) + float64(white.R)*a),
-					uint8(float64(red.G)*(1-a) + float64(white.G)*a),
-					uint8(float64(red.B)*(1-a) + float64(white.B)*a), 255})
+					uint8(float64(base.R)*(1-a) + float64(white.R)*a),
+					uint8(float64(base.G)*(1-a) + float64(white.G)*a),
+					uint8(float64(base.B)*(1-a) + float64(white.B)*a), 255})
 			}
 		}
 	}
