@@ -32,4 +32,9 @@ install -m 644 "$ROOT/client/packaging/macos/com.maplegate.gamevpn.plist" "$OUT/
 
 pkgbuild --root "$OUT/root" --identifier com.maplegate.gamevpn --version "$VERSION" \
   --scripts "$ROOT/client/packaging/macos/scripts" --install-location / "$ROOT/build/gamevpn.pkg"
-echo "built $ROOT/build/gamevpn.pkg"
+# the same script runs as the postinstall of a payload-less package, so removing needs no terminal
+mkdir -p "$OUT/uninstall-scripts"
+install -m 755 "$ROOT/client/packaging/macos/uninstall.sh" "$OUT/uninstall-scripts/postinstall"
+pkgbuild --nopayload --identifier com.maplegate.gamevpn.uninstall --version "$VERSION" \
+  --scripts "$OUT/uninstall-scripts" "$ROOT/build/gamevpn-uninstall.pkg"
+echo "built $ROOT/build/gamevpn.pkg and $ROOT/build/gamevpn-uninstall.pkg"

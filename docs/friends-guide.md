@@ -27,4 +27,4 @@ Colours: grey, not connected; amber, signing in or waiting for approval; green, 
 
 ## Remove
 
-Open Terminal and run `sudo /usr/local/share/gamevpn/uninstall.sh`.
+Open `gamevpn-uninstall.pkg` the same way you opened the installer. Or, in Terminal, run `sudo /usr/local/share/gamevpn/uninstall.sh`.

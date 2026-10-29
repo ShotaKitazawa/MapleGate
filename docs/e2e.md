@@ -98,7 +98,7 @@ Build with `client/packaging/macos/build-pkg.sh <settings file>`; install on a m
 | P4 | Kill the app (`kill -9`) and leave it dead | the tunnel stays up for 15 minutes, then goes down; the node closes the session as `idle` | you |
 | P5 | Disconnect from the menu | session `closed`, no route left, `curl ifconfig.io` shows your own address | you |
 | P6 | The daemon refuses another user | a second macOS account (or `sudo -u`) gets "not allowed" from the socket | you |
-| P7 | Uninstall script | nothing of ours is left in `/usr/local`, `/Library`, `/var/run` | you |
+| P7 | Uninstall script (done by the script from a terminal), and `gamevpn-uninstall.pkg` opened from Finder | nothing of ours is left in `/usr/local`, `/Library`, `/var/run`, no process, no receipt, no route | you |
 
 ## Full end-to-end, after the client exists (Phase 4 onward)
 
