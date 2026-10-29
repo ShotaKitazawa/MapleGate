@@ -10,7 +10,7 @@ VERSION=${VERSION:-0.1.0}
 
 rm -rf "$OUT"
 mkdir -p "$OUT/root/usr/local/bin" "$OUT/root/usr/local/share/maplegate" \
-  "$OUT/root/Library/LaunchDaemons" "$OUT/root/Library/LaunchAgents" "$OUT/root/Applications/MapleGate.app/Contents/MacOS" "$OUT/root/etc/newsyslog.d" "$OUT/arm64" "$OUT/amd64"
+  "$OUT/root/Library/LaunchDaemons" "$OUT/root/Library/LaunchAgents" "$OUT/root/Applications/MapleGate.app/Contents/MacOS" "$OUT/root/Applications/MapleGate.app/Contents/Resources" "$OUT/root/etc/newsyslog.d" "$OUT/arm64" "$OUT/amd64"
 
 # the tray app uses cgo, so each architecture is built by clang for that architecture
 for arch in arm64 amd64; do
@@ -32,6 +32,8 @@ install -m 644 "$ROOT/client/packaging/macos/maplegated.newsyslog.conf" "$OUT/ro
 install -m 644 "$ROOT/client/packaging/macos/com.maplegate.daemon.plist" "$OUT/root/Library/LaunchDaemons/"
 install -m 644 "$ROOT/client/packaging/macos/com.maplegate.tray.plist" "$OUT/root/Library/LaunchAgents/"
 
+(cd "$ROOT" && go run ./client/cmd/appicon "$OUT/AppIcon.iconset")
+iconutil -c icns -o "$OUT/root/Applications/MapleGate.app/Contents/Resources/AppIcon.icns" "$OUT/AppIcon.iconset"
 install -m 644 "$ROOT/client/packaging/macos/app/Info.plist" "$OUT/root/Applications/MapleGate.app/Contents/Info.plist"
 install -m 755 "$ROOT/client/packaging/macos/app/MapleGate" "$OUT/root/Applications/MapleGate.app/Contents/MacOS/MapleGate"
 # a relocatable bundle makes the installer update a copy wherever the person moved it, not the one in /Applications
