@@ -43,7 +43,9 @@ type Handler struct {
 	Invoker   Invoker
 	ChannelID func(ctx context.Context) (string, error)
 	PublicKey func(ctx context.Context) (ed25519.PublicKey, error)
-	Now       func() time.Time
+	// DownloadURL returns a short-lived link to the installer.
+	DownloadURL func(ctx context.Context) (string, error)
+	Now         func() time.Time
 }
 
 func (h *Handler) Handle(ctx context.Context, req events.LambdaFunctionURLRequest) events.LambdaFunctionURLResponse {
@@ -71,6 +73,11 @@ func (h *Handler) Handle(ctx context.Context, req events.LambdaFunctionURLReques
 	switch in.Type {
 	case discord.InteractionPing:
 		return resp(http.StatusOK, map[string]int{"type": discord.ResponsePong})
+	case discord.InteractionCommand:
+		if in.Data.Name != "download" {
+			return resp(http.StatusBadRequest, nil)
+		}
+		return h.download(ctx)
 	case discord.InteractionComponent:
 		action, sid, ok := strings.Cut(in.Data.CustomID, ":")
 		if !ok || (action != "approve" && action != "deny") || sid == "" {
@@ -87,6 +94,21 @@ func (h *Handler) Handle(ctx context.Context, req events.LambdaFunctionURLReques
 		return resp(http.StatusOK, map[string]int{"type": discord.ResponseDeferredUpdateMessage})
 	}
 	return resp(http.StatusBadRequest, nil)
+}
+
+func (h *Handler) download(ctx context.Context) events.LambdaFunctionURLResponse {
+	content := "The link could not be made. Ask the person who runs the server."
+	if h.DownloadURL != nil {
+		if u, err := h.DownloadURL(ctx); err != nil {
+			slog.Error("download link", "err", err)
+		} else {
+			content = "Installer (the link works for 15 minutes; see the guide for how to open it):\n" + u
+		}
+	}
+	return resp(http.StatusOK, map[string]any{
+		"type": discord.ResponseChannelMessage,
+		"data": map[string]any{"content": content, "flags": discord.FlagEphemeral},
+	})
 }
 
 func (h *Handler) HandleAsync(ctx context.Context, ev AsyncEvent) error {

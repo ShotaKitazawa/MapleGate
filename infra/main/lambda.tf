@@ -16,6 +16,7 @@ locals {
     SESSION_TTL          = var.session_ttl
     SESSION_EXTEND_EVERY = var.session_extend_every
     HANDSHAKE_IDLE       = "${var.handshake_idle_seconds}s"
+    DIST_BUCKET          = aws_s3_bucket.artifacts.bucket
   }
   functions = toset(["session", "discord", "janitor"])
 }
@@ -71,6 +72,14 @@ data "aws_iam_policy_document" "discord_self_invoke" {
   }
 }
 
+# The link is signed with this role, so it can read the installer and nothing else in the bucket.
+data "aws_iam_policy_document" "discord_dist" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.artifacts.arn}/dist/*"]
+  }
+}
+
 resource "aws_iam_role" "fn" {
   for_each           = local.functions
   name               = "gamevpn-${each.key}"
@@ -91,6 +100,11 @@ resource "aws_iam_role_policy" "janitor_instance" {
 resource "aws_iam_role_policy" "discord_self_invoke" {
   role   = aws_iam_role.fn["discord"].id
   policy = data.aws_iam_policy_document.discord_self_invoke.json
+}
+
+resource "aws_iam_role_policy" "discord_dist" {
+  role   = aws_iam_role.fn["discord"].id
+  policy = data.aws_iam_policy_document.discord_dist.json
 }
 
 resource "aws_iam_role_policy_attachment" "logs" {

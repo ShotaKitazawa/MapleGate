@@ -4,10 +4,14 @@ import "fmt"
 
 const (
 	InteractionPing      = 1
+	InteractionCommand   = 2
 	InteractionComponent = 3
 
 	ResponsePong                  = 1
+	ResponseChannelMessage        = 4
 	ResponseDeferredUpdateMessage = 6
+
+	FlagEphemeral = 64
 
 	styleSuccess = 3
 	styleDanger  = 4
@@ -17,6 +21,7 @@ type Interaction struct {
 	Type int `json:"type"`
 	Data struct {
 		CustomID string `json:"custom_id"`
+		Name     string `json:"name"`
 	} `json:"data"`
 	Member struct {
 		User User `json:"user"`

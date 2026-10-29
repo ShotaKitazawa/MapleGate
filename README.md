@@ -1,7 +1,8 @@
-# MapleGate (game-vpn)
+# MapleGate
 
-On-demand WireGuard VPN in AWS us-west-2 for the game.
-Access is gated by IAM Identity Center and a Discord approval button.
+An on-demand WireGuard gateway on AWS, gated by IAM Identity Center sign-in and a Discord approval button. A small node starts when someone is approved and stops itself when nobody is using it, so an idle deployment costs close to nothing. It was written to let a few friends reach a game's servers from one region.
+
+This is a reference implementation for AWS, not a portable product: it uses DynamoDB, Lambda Function URLs with IAM auth, IAM Identity Center, EventBridge Scheduler, EC2, S3 and SSM Parameter Store directly, and nothing abstracts them. Names and regions are variables (see `infra/main/variables.tf`); a provider other than AWS would be a rewrite of the Lambdas and the client's sign-in.
 
 How the node, the Lambdas and DynamoDB stay consistent (and what happens when each of them breaks) is specified in [docs/lifecycle.md](docs/lifecycle.md). The client plan is in [docs/client.md](docs/client.md); what has been checked against the real environment, and what has not, is in [docs/e2e.md](docs/e2e.md).
 
@@ -76,6 +77,17 @@ Function URL creation makes Lambda add its own public-access statements to the f
 ## The installer (macOS)
 
 `client/packaging/macos/build-pkg.sh <settings file>` builds `build/MapleGate.pkg` (the tray app, the daemon, `MapleGate.app` to open it from Spotlight, log rotation) and `build/MapleGate-uninstall.pkg`. The settings file is the JSON above; it is copied into the package, so a friend never writes it. What a friend does is in [docs/friends-guide.md](docs/friends-guide.md). The pkg is not signed, so the guide says how to get past Gatekeeper.
+
+## Handing out the installer
+
+Put the pkg in the artifacts bucket once per release, and register the command once:
+
+```
+aws s3 cp build/MapleGate.pkg s3://<artifacts bucket>/dist/MapleGate.pkg
+scripts/register-discord-command.sh <application id>
+```
+
+A friend types `/download` in the server and gets a link that only they can see and that works for 15 minutes. The discord Lambda signs it with its own role, which may read `dist/` and nothing else in the bucket. The pkg holds the deployment's non-secret settings, so anyone in the server can get it; remove the command or the bot's access to the channel to stop that.
 
 ## Debugging with the CLI (no tunnel)
 

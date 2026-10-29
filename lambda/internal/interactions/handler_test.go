@@ -114,6 +114,44 @@ func TestPing(t *testing.T) {
 	assert.JSONEq(t, `{"type":1}`, r.Body)
 }
 
+func commandBody(name string) string {
+	return `{"type":2,"data":{"name":"` + name + `"},"member":{"user":{"id":"u9","username":"bob"}}}`
+}
+
+func TestDownloadCommandAnswersOnlyTheAskerWithALink(t *testing.T) {
+	e := newEnv(t)
+	e.h.DownloadURL = func(context.Context) (string, error) { return "https://example.test/pkg?sig=x", nil }
+	r := e.h.Handle(context.Background(), e.signed(commandBody("download")))
+
+	assert.Equal(t, 200, r.StatusCode)
+	var out struct {
+		Type int `json:"type"`
+		Data struct {
+			Content string `json:"content"`
+			Flags   int    `json:"flags"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(r.Body), &out))
+	assert.Equal(t, 4, out.Type)
+	assert.Equal(t, 64, out.Data.Flags, "ephemeral: the link is not shown to the channel")
+	assert.Contains(t, out.Data.Content, "https://example.test/pkg?sig=x")
+}
+
+func TestDownloadCommandWhenTheLinkCannotBeMade(t *testing.T) {
+	e := newEnv(t)
+	e.h.DownloadURL = func(context.Context) (string, error) { return "", errors.New("boom") }
+	r := e.h.Handle(context.Background(), e.signed(commandBody("download")))
+
+	assert.Equal(t, 200, r.StatusCode, "Discord shows a non-2xx as a generic failure; say what happened instead")
+	assert.NotContains(t, r.Body, "boom")
+	assert.Contains(t, r.Body, `"flags":64`)
+}
+
+func TestUnknownCommand(t *testing.T) {
+	e := newEnv(t)
+	assert.Equal(t, 400, e.h.Handle(context.Background(), e.signed(commandBody("other"))).StatusCode)
+}
+
 func TestButtonDefersAndInvokesSelf(t *testing.T) {
 	e := newEnv(t)
 	r := e.h.Handle(context.Background(), e.signed(buttonBody("approve:s1")))

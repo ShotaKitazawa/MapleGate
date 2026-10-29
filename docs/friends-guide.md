@@ -4,7 +4,7 @@ This sends your game's traffic through a server in the US west. It only runs whi
 
 ## Install (once)
 
-1. Download `MapleGate.pkg` from the link you were given.
+1. In the Discord server, type `/download`. The link that appears (only you see it, and it works for 15 minutes) downloads `MapleGate.pkg`.
 2. The package is not signed by Apple, so macOS refuses a double click. **Right click the file, choose Open, then Open again.** If that button is missing: System Settings, Privacy & Security, scroll down, "Open Anyway".
 3. Enter your Mac password when asked. A grey dot appears in the menu bar. (MapleGate does not appear under System Settings, VPN; the dot is where it lives.)
 4. You will get an e-mail from AWS inviting you to set a password. Do that first.

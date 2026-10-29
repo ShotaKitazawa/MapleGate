@@ -13,6 +13,7 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/config"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/discord"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/interactions"
+	"github.com/ShotaKitazawa/MapleGate/lambda/internal/presign"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -58,6 +59,9 @@ func main() {
 		Discord: discord.NewREST(func(ctx context.Context) (string, error) { return params.Get(ctx, "discord/bot_token") }, params.Invalidate),
 		Invoker: selfInvoker{client: lambdasvc.NewFromConfig(awsCfg), name: os.Getenv("AWS_LAMBDA_FUNCTION_NAME")},
 		Now:     time.Now,
+		DownloadURL: func(ctx context.Context) (string, error) {
+			return presign.GetURL(ctx, awsCfg.Credentials, awsCfg.Region, cfg.DistBucket, cfg.DistKey, 15*time.Minute, time.Now())
+		},
 		ChannelID: func(ctx context.Context) (string, error) {
 			return params.Get(ctx, "discord/channel_id")
 		},

@@ -28,6 +28,8 @@ type Config struct {
 	AlertRepeat       time.Duration
 	AllowedIPs        []string
 	Keepalive         int
+	DistBucket        string
+	DistKey           string
 }
 
 func Load() (Config, error) {
@@ -51,6 +53,8 @@ func Load() (Config, error) {
 		AlertRepeat:       envDur("NODE_ALERT_REPEAT", time.Hour),
 		AllowedIPs:        strings.Split(envOr("ALLOWED_IPS", "0.0.0.0/0,::/0"), ","),
 		Keepalive:         envInt("PERSISTENT_KEEPALIVE", 25),
+		DistBucket:        os.Getenv("DIST_BUCKET"),
+		DistKey:           envOr("DIST_KEY", "dist/MapleGate.pkg"),
 	}
 	if c.TableName == "" || c.InstanceID == "" {
 		return c, fmt.Errorf("TABLE_NAME and INSTANCE_ID are required")
