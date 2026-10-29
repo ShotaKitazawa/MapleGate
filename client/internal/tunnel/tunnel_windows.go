@@ -1,0 +1,175 @@
+//go:build windows
+
+package tunnel
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/ShotaKitazawa/MapleGate/client/internal/netcfg"
+	"golang.org/x/sys/windows"
+	"golang.zx2c4.com/wireguard/conn"
+	"golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/tun"
+)
+
+// ifaceName is what netsh is told to address; the adapter is created under it.
+const ifaceName = "MapleGate"
+
+// stateFile remembers the one route that outlives the adapter, so a run that was killed is cleaned up by the next.
+func stateFile() string {
+	return filepath.Join(os.Getenv("ProgramData"), "MapleGate", "tunnel.json")
+}
+
+type pinned struct {
+	Endpoint string         `json:"endpoint"`
+	Gateway  netcfg.Gateway `json:"gateway"`
+}
+
+func sh(args []string) (string, error) {
+	c := exec.Command(args[0], args[1:]...)
+	c.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
+	out, err := c.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("%s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
+func defaultGateway(skipIfaceIP string) (netcfg.Gateway, error) {
+	out, err := sh([]string{"route", "print", "-4", "0.0.0.0"})
+	if err != nil {
+		return netcfg.Gateway{}, err
+	}
+	return netcfg.ParseDefaultWindows(out, skipIfaceIP)
+}
+
+func dropStale() {
+	b, err := os.ReadFile(stateFile())
+	if err != nil {
+		return
+	}
+	var p pinned
+	if json.Unmarshal(b, &p) == nil && p.Endpoint != "" {
+		_, _ = sh(netcfg.WindowsEndpointRoute("delete", p.Endpoint, p.Gateway))
+	}
+	_ = os.Remove(stateFile())
+}
+
+func pin(endpoint string, gw netcfg.Gateway) error {
+	if _, err := sh(netcfg.WindowsEndpointRoute("add", endpoint, gw)); err != nil {
+		return err
+	}
+	b, _ := json.Marshal(pinned{Endpoint: endpoint, Gateway: gw})
+	_ = os.MkdirAll(filepath.Dir(stateFile()), 0o700)
+	return os.WriteFile(stateFile(), b, 0o600)
+}
+
+func unpin(endpoint string, gw netcfg.Gateway) {
+	_, _ = sh(netcfg.WindowsEndpointRoute("delete", endpoint, gw))
+	_ = os.Remove(stateFile())
+}
+
+// Run holds the tunnel up until ctx is done or the device stops, and removes everything it added on the way out.
+func Run(ctx context.Context, u Up, logf func(format string, a ...any), ready func(iface string)) (err error) {
+	if err := u.Validate(); err != nil {
+		return err
+	}
+	if !windows.GetCurrentProcessToken().IsElevated() {
+		return fmt.Errorf("the tunnel needs administrator rights; run it from an elevated terminal")
+	}
+	epIP, err := netcfg.EndpointIP(u.Endpoint)
+	if err != nil {
+		return err
+	}
+	conf, err := u.UAPI()
+	if err != nil {
+		return err
+	}
+	dropStale()
+
+	gw, err := defaultGateway("")
+	if err != nil {
+		return fmt.Errorf("find the current gateway: %w", err)
+	}
+
+	tdev, err := tun.CreateTUN(ifaceName, MTU)
+	if err != nil {
+		return fmt.Errorf("create the interface (is wintun.dll next to the program?): %w", err)
+	}
+	dev := device.NewDevice(tdev, conn.NewDefaultBind(), device.NewLogger(device.LogLevelError, "wireguard: "))
+	tunnelIP := strings.SplitN(u.Address, "/", 2)[0]
+	routes := netcfg.Routes(u.AllowedIPs)
+	pinnedNow := false
+	defer func() {
+		for _, c := range netcfg.WindowsDown(ifaceName, routes) {
+			_, _ = sh(c)
+		}
+		if pinnedNow {
+			unpin(epIP, gw)
+		}
+		dev.Close()
+		logf("tunnel down, routes removed")
+	}()
+
+	if err := dev.IpcSet(conf); err != nil {
+		return fmt.Errorf("configure wireguard: %w", err)
+	}
+	if err := dev.Up(); err != nil {
+		return err
+	}
+	// the endpoint route goes in before the halves of the default route, or the tunnel's own packets would loop
+	if err := pin(epIP, gw); err != nil {
+		return err
+	}
+	pinnedNow = true
+	cmds, err := netcfg.WindowsUp(ifaceName, u.Address, routes)
+	if err != nil {
+		return err
+	}
+	for _, c := range cmds {
+		if _, err := sh(c); err != nil {
+			return err
+		}
+	}
+	logf("tunnel up on %s via %s", ifaceName, gw.Via)
+	if ready != nil {
+		ready(ifaceName)
+	}
+
+	var watch routeWatch
+	tick := time.NewTicker(5 * time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-dev.Wait():
+			return fmt.Errorf("the wireguard device stopped")
+		case <-tick.C:
+			now, err := defaultGateway(tunnelIP)
+			if err != nil || now == gw {
+				continue
+			}
+			logf("the gateway changed to %s, moving the route to the node", now.Via)
+			unpin(epIP, gw)
+			pinnedNow = false
+			err = pin(epIP, now)
+			if err == nil {
+				gw, pinnedNow = now, true
+			} else {
+				logf("could not move the route: %v", err)
+			}
+			if watch.failed(err) {
+				return fmt.Errorf("lost the route to the node: %w", err)
+			}
+		}
+	}
+}
