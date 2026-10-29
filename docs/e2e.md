@@ -64,6 +64,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 |---|---|---|---|---|
 | O2 | A test budget with a tiny threshold sends its mail (F3) | lower `monthly_budget_usd` to 0.01 for a moment, a mail arrives, put it back | both | reversible. Lowered at 2026-10-29 20:41 JST; **put it back to 10 when the mail has arrived** |
 | O5 | Port 25 from the tunnel is refused, so the node cannot send spam | after the node picks up the new setup: `nc -vz -w5 <any mail server> 25` through the tunnel is reset at once, and port 587 still connects | both | needs the setup delivered and the node restarted |
+| O6 | One peer is held to about 10 Mbps in each direction | through the tunnel, a 100 MB download from S3 takes about 80 seconds or more (about 1.2 MB/s), the game and ping are unaffected, and a second peer at the same time is not slowed by the first | both | needs the setup delivered and the node restarted; the rate and burst are in `node/nftables.conf` |
 
 ### The game
 
