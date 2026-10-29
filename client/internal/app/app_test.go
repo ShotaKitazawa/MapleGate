@@ -195,3 +195,31 @@ func TestAdoptingATunnelKeepsWhenItCameUp(t *testing.T) {
 
 	assert.Equal(t, since, a.State().Since)
 }
+
+func TestSignOutDisconnectsAndThenForgetsTheSignIn(t *testing.T) {
+	a, s, d := rig()
+	forgot := false
+	a.Forget = func() { forgot = true }
+	a.Connect()
+	require.Eventually(t, func() bool { return a.State().Phase == Connected }, time.Second, time.Millisecond)
+
+	a.SignOut()
+
+	assert.True(t, forgot)
+	assert.Equal(t, Idle, a.State().Phase)
+	assert.Equal(t, []string{"s1"}, s.closedIDs())
+	assert.Contains(t, d.opList(), "down")
+}
+
+func TestSignOutReportsTheStateAgainAfterTheSignInIsGone(t *testing.T) {
+	a, _, _ := rig()
+	signedIn := true
+	a.Forget = func() { signedIn = false }
+	var seen []bool
+	a.OnChange = func(State) { seen = append(seen, signedIn) }
+
+	a.SignOut()
+
+	require.NotEmpty(t, seen)
+	assert.False(t, seen[len(seen)-1])
+}

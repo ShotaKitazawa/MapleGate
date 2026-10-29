@@ -58,12 +58,14 @@ func tray() error {
 	if err != nil {
 		return err
 	}
+	l.Prompt = func(_, code string) { a.Say("Finish signing in in your browser (code " + code + ")") }
 	client := &api.Client{Base: s.APIURL, Region: s.Region, Creds: l.Provider()}
 	a = &app.App{
 		Sessions: &session.Runner{API: client, Progress: func(m string) { a.Say(m) }},
 		Daemon:   ipc.Client{Path: daemonSocket},
 		Wait:     10 * time.Minute,
 		Poll:     5 * time.Second,
+		Forget:   l.Forget,
 	}
 
 	systray.Run(func() {
@@ -75,17 +77,27 @@ func tray() error {
 		disconnect := systray.AddMenuItem("Disconnect", "")
 		disconnect.Disable()
 		systray.AddSeparator()
+		signOut := systray.AddMenuItem("Sign out", "")
+		systray.AddSeparator()
 		quit := systray.AddMenuItem("Quit", "")
 
 		label := func(st app.State) string {
 			if st.Text == "" {
 				st.Text = "Not connected"
+				if !l.SignedIn() {
+					st.Text = "Not signed in"
+				}
 			}
 			return st.Label(time.Now())
 		}
 		a.OnChange = func(st app.State) {
 			systray.SetIcon(icons[st.Phase])
 			status.SetTitle(label(st))
+			if l.SignedIn() {
+				signOut.Enable()
+			} else {
+				signOut.Disable()
+			}
 			busy := st.Phase == app.Waiting || st.Phase == app.Connected
 			if busy {
 				connect.Disable()
@@ -117,6 +129,8 @@ func tray() error {
 					a.Connect()
 				case <-disconnect.ClickedCh:
 					a.Disconnect()
+				case <-signOut.ClickedCh:
+					a.SignOut()
 				case <-quit.ClickedCh:
 					// a crash leaves the tunnel to the daemon's idle rule, but a deliberate Quit must not leave one nobody can see
 					status.SetTitle("Disconnecting...")

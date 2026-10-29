@@ -208,3 +208,30 @@ func TestRoleCredentialsExpireBeforeAWSDoes(t *testing.T) {
 	assert.True(t, creds.CanExpire)
 	assert.True(t, creds.Expires.Before(time.Now().Add(time.Hour)))
 }
+
+func TestSignedInFollowsTheCachedTokens(t *testing.T) {
+	r := newRig(t)
+	assert.False(t, r.l.SignedIn())
+
+	_, err := r.l.Token(context.Background())
+	require.NoError(t, err)
+	assert.True(t, r.l.SignedIn())
+
+	r.l.Forget()
+	assert.False(t, r.l.SignedIn())
+}
+
+func TestAPromptGetsTheAddressAndCodeInsteadOfASentence(t *testing.T) {
+	r := newRig(t)
+	var url, code string
+	r.l.Prompt = func(u, c string) { url, code = u, c }
+	var said []string
+	r.l.Say = func(m string) { said = append(said, m) }
+
+	_, err := r.l.Token(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.invalid/verify", url)
+	assert.Equal(t, "ABCD", code)
+	assert.Empty(t, said)
+}

@@ -38,7 +38,9 @@ type Login struct {
 	// Open shows the verification page to the person; its failure is not fatal because Say also prints the URL.
 	Open func(url string) error
 	Say  func(msg string)
-	Now  func() time.Time
+	// Prompt receives the address and the code instead of Say, for a caller that shows them its own way.
+	Prompt func(url, code string)
+	Now    func() time.Time
 	// Sleep waits between polls; tests replace it.
 	Sleep func(context.Context, time.Duration) error
 }
@@ -154,7 +156,11 @@ func (l *Login) deviceFlow(ctx context.Context, c cache) (string, error) {
 		return "", fmt.Errorf("start device authorization: %w", err)
 	}
 	url := aws.ToString(auth.VerificationUriComplete)
-	l.say(fmt.Sprintf("Sign in at %s (code %s)", url, aws.ToString(auth.UserCode)))
+	if l.Prompt != nil {
+		l.Prompt(url, aws.ToString(auth.UserCode))
+	} else {
+		l.say(fmt.Sprintf("Sign in at %s (code %s)", url, aws.ToString(auth.UserCode)))
+	}
 	if l.Open != nil {
 		_ = l.Open(url)
 	}
@@ -197,6 +203,12 @@ func (l *Login) sleep(ctx context.Context, d time.Duration) error {
 	case <-time.After(d):
 		return nil
 	}
+}
+
+// SignedIn says whether tokens are cached; the refresh token may still be refused, which only a request finds out.
+func (l *Login) SignedIn() bool {
+	c := l.load()
+	return c.RefreshToken != "" || (c.AccessToken != "" && l.now().Before(c.TokenExpiry))
 }
 
 // Forget drops the cached tokens, for when the portal says the token is no good.

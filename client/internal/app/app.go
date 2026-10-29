@@ -56,6 +56,8 @@ type App struct {
 	// Poll is how often the daemon is asked for its status, which is also its heartbeat.
 	Poll     time.Duration
 	OnChange func(State)
+	// Forget drops the cached sign in; SignOut calls it after the tunnel is down.
+	Forget func()
 
 	mu     sync.Mutex
 	state  State
@@ -214,6 +216,21 @@ func (a *App) Disconnect() {
 		_ = a.Sessions.Close(id)
 	}
 	a.set(gen, State{Phase: Idle})
+}
+
+// SignOut ends any tunnel first, so the session is closed while there are still credentials to close it with.
+func (a *App) SignOut() {
+	a.Disconnect()
+	if a.Forget != nil {
+		a.Forget()
+	}
+	// the menu reads the sign in state when it is told of a change
+	a.mu.Lock()
+	st, f := a.state, a.OnChange
+	a.mu.Unlock()
+	if f != nil {
+		f(st)
+	}
 }
 
 // Adopt picks up a tunnel that is already up, as after the app was restarted, and keeps looking after it.
