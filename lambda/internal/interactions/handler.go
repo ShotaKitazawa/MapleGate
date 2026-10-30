@@ -97,6 +97,20 @@ func (h *Handler) Handle(ctx context.Context, req events.LambdaFunctionURLReques
 	return resp(http.StatusBadRequest, nil)
 }
 
+const maxContent = 2000
+
+// hints are the places people get stuck, not the steps: the installer is unsigned and the first sign in needs a password set.
+var hints = map[string]string{
+	"macos": "- Not signed by Apple: right-click the file, Open, Open. If there is no such button: System Settings, Privacy & Security, Open Anyway.\n" +
+		"- It asks for your Mac password; the menu bar then shows a dot (MapleGate is not under System Settings, VPN).\n" +
+		"- Set your password from the AWS invitation e-mail first.\n" +
+		"- Always click Disconnect when you are done.",
+	"windows": "- \"Windows protected your PC\": More info, Run anyway. Allow the administrator prompt.\n" +
+		"- The dot may be under the ^ arrow in the tray.\n" +
+		"- Set your password from the AWS invitation e-mail first.\n" +
+		"- Always click Disconnect when you are done.",
+}
+
 func (h *Handler) download(ctx context.Context, platform string) events.LambdaFunctionURLResponse {
 	content := "The link could not be made. Ask the person who runs the server."
 	if h.DownloadURL != nil {
@@ -106,7 +120,11 @@ func (h *Handler) download(ctx context.Context, platform string) events.LambdaFu
 		case u == "":
 			content = "There is no installer for " + platform + " yet."
 		default:
-			content = "[Download link](" + u + ") (works for 15 minutes; see the guide for how to open it)"
+			content = "[Download link](" + u + ") (works for 15 minutes)"
+			// the signed URL carries a session token and can be long; a message over Discord's limit is refused whole
+			if len(content)+len(hints[platform])+1 <= maxContent {
+				content += "\n" + hints[platform]
+			}
 		}
 	}
 	return resp(http.StatusOK, map[string]any{

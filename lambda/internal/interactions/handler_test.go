@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -140,6 +141,36 @@ func TestDownloadCommandAnswersOnlyTheAskerWithALink(t *testing.T) {
 	assert.Equal(t, 4, out.Type)
 	assert.Equal(t, 64, out.Data.Flags, "ephemeral: the link is not shown to the channel")
 	assert.Contains(t, out.Data.Content, "[Download link](https://example.test/pkg?sig=x)", "the long signed URL stays out of sight")
+}
+
+func TestDownloadReplyCarriesTheHintsOfThatSystemOnly(t *testing.T) {
+	e := newEnv(t)
+	e.h.DownloadURL = func(context.Context, string) (string, error) { return "https://example.test/x", nil }
+
+	mac := e.h.Handle(context.Background(), e.signed(commandBody("download-macos"))).Body
+	win := e.h.Handle(context.Background(), e.signed(commandBody("download-windows"))).Body
+
+	assert.Contains(t, mac, "Open Anyway")
+	assert.NotContains(t, mac, "More info")
+	assert.Contains(t, win, "Run anyway")
+	assert.NotContains(t, win, "Open Anyway")
+	assert.Contains(t, mac, "Disconnect")
+	assert.Contains(t, win, "Disconnect")
+}
+
+func TestDownloadReplyDropsTheHintsRatherThanExceedDiscordsLimit(t *testing.T) {
+	e := newEnv(t)
+	long := "https://example.test/" + strings.Repeat("x", 1700)
+	e.h.DownloadURL = func(context.Context, string) (string, error) { return long, nil }
+
+	var out struct {
+		Data struct{ Content string } `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(e.h.Handle(context.Background(), e.signed(commandBody("download-macos"))).Body), &out))
+
+	assert.LessOrEqual(t, len(out.Data.Content), 2000)
+	assert.Contains(t, out.Data.Content, long)
+	assert.NotContains(t, out.Data.Content, "Disconnect")
 }
 
 func TestDownloadCommandWhenTheLinkCannotBeMade(t *testing.T) {

@@ -76,7 +76,7 @@ Function URL creation makes Lambda add its own public-access statements to the f
 
 ## The installer (macOS)
 
-`client/packaging/macos/build-pkg.sh <settings file>` builds `build/MapleGate.pkg` (the tray app, the daemon, `MapleGate.app` to open it from Spotlight, log rotation) and `build/MapleGate-uninstall.pkg`. The settings file is the JSON above; it is copied into the package, so a friend never writes it. What a friend does is in [docs/friends-guide.md](docs/friends-guide.md). The pkg is not signed, so the guide says how to get past Gatekeeper.
+`client/packaging/macos/build-pkg.sh <settings file>` builds `build/MapleGate.pkg` (the tray app, the daemon, `MapleGate.app` to open it from Spotlight, log rotation) and `build/MapleGate-uninstall.pkg`. The bot's reply to the download command carries the points where people get stuck (the unsigned installer, the first password); the guides below are the longer version. The settings file is the JSON above; it is copied into the package, so a friend never writes it. What a friend does is in [docs/friends-guide.md](docs/friends-guide.md). The pkg is not signed, so the guide says how to get past Gatekeeper.
 
 ## Handing out the installer
 

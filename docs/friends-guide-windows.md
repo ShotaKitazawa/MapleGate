@@ -1,5 +1,7 @@
 # Playing through MapleGate (Windows)
 
+The reply to the download command in Discord already carries the points where people get stuck; this is the longer version to point someone to.
+
 This sends your game's traffic through a server in the US west. It only runs while you ask it to, and it needs one approval each time.
 
 ## Install (once)
