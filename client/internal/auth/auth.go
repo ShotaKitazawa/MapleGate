@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -220,9 +221,30 @@ func (l *Login) Forget() {
 	_ = l.save(c)
 }
 
-// Provider returns role credentials for the API client; the cache wrapper renews them before they expire.
+// Provider returns role credentials for the API client, renewed once they expire. aws.NewCredentialsCache is not used
+// because it runs the retrieval with the caller's cancellation suppressed, so a cancelled sign in kept polling and the next one joined it.
 func (l *Login) Provider() aws.CredentialsProvider {
-	return aws.NewCredentialsCache(aws.CredentialsProviderFunc(l.retrieve))
+	return &credentialCache{retrieve: l.retrieve}
+}
+
+type credentialCache struct {
+	retrieve func(context.Context) (aws.Credentials, error)
+	mu       sync.Mutex
+	creds    aws.Credentials
+}
+
+func (c *credentialCache) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.creds.HasKeys() && !c.creds.Expired() {
+		return c.creds, nil
+	}
+	creds, err := c.retrieve(ctx)
+	if err != nil {
+		return aws.Credentials{}, err
+	}
+	c.creds = creds
+	return creds, nil
 }
 
 func (l *Login) retrieve(ctx context.Context) (aws.Credentials, error) {

@@ -235,3 +235,27 @@ func TestAPromptGetsTheAddressAndCodeInsteadOfASentence(t *testing.T) {
 	assert.Equal(t, "ABCD", code)
 	assert.Empty(t, said)
 }
+
+func TestACancelledSignInDoesNotKeepRunningForTheNextRequest(t *testing.T) {
+	r := newRig(t)
+	entered := make(chan struct{}, 2)
+	r.l.Sleep = func(ctx context.Context, _ time.Duration) error {
+		entered <- struct{}{}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	p := r.l.Provider()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { _, err := p.Retrieve(ctx); done <- err }()
+	<-entered
+	cancel()
+	require.Error(t, <-done)
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	go func() { _, _ = p.Retrieve(ctx2) }()
+	<-entered
+
+	assert.Len(t, r.opened, 2)
+}
