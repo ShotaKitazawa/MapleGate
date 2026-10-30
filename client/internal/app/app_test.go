@@ -3,12 +3,14 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ShotaKitazawa/MapleGate/client/internal/api"
 	"github.com/ShotaKitazawa/MapleGate/client/internal/ipc"
+	"github.com/ShotaKitazawa/MapleGate/client/internal/session"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -97,12 +99,13 @@ func TestConnectEndsUpConnectedAfterTheDaemonIsAsked(t *testing.T) {
 
 func TestARefusedRequestIsShownAndNothingIsStarted(t *testing.T) {
 	a, _, d := rig()
-	a.Sessions.(*sessions).requestErr = errors.New("denied")
+	a.Sessions.(*sessions).requestErr = fmt.Errorf("wrapped: %w", &session.EndedError{ID: "s9", Status: "denied"})
 
 	a.Connect()
 
 	require.Eventually(t, func() bool { return a.State().Phase == Failed }, time.Second, time.Millisecond)
-	assert.Contains(t, a.State().Text, "denied")
+	assert.Equal(t, "The request was denied.", a.State().Text)
+	assert.Contains(t, a.State().Detail, "s9", "the long form is kept for the log")
 	assert.Empty(t, d.opList())
 }
 
@@ -136,7 +139,7 @@ func TestASessionThatEndsTakesTheTunnelDown(t *testing.T) {
 	s.ended <- api.Session{ID: "s1", Status: "expired"}
 
 	require.Eventually(t, func() bool { return a.State().Phase == Failed }, time.Second, time.Millisecond)
-	assert.Contains(t, a.State().Text, "expired")
+	assert.Equal(t, "The session reached its time limit. Connect again.", a.State().Text)
 	assert.Contains(t, d.opList(), "down")
 }
 
@@ -148,7 +151,8 @@ func TestADaemonThatDropsTheTunnelIsReportedAndTheSessionClosed(t *testing.T) {
 	d.set(ipc.Status{State: "down", Error: "no route"})
 
 	require.Eventually(t, func() bool { return a.State().Phase == Failed }, time.Second, time.Millisecond)
-	assert.Contains(t, a.State().Text, "no route")
+	assert.Equal(t, "The tunnel stopped.", a.State().Text)
+	assert.Equal(t, "no route", a.State().Detail)
 	assert.Equal(t, []string{"s1"}, s.closedIDs())
 }
 

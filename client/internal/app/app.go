@@ -24,6 +24,8 @@ const (
 type State struct {
 	Phase string
 	Text  string
+	// Detail is the error behind a failure, for the log; it is too long for the menu.
+	Detail string
 	// Since is when the tunnel came up. How long it has been up says more than the session's expiry, which moves while it is in use.
 	Since time.Time
 }
@@ -131,6 +133,10 @@ func (a *App) begin(s State) (context.Context, int) {
 	return ctx, gen
 }
 
+func (a *App) fail(gen int, err error) {
+	a.set(gen, State{Phase: Failed, Text: explain(err), Detail: err.Error()})
+}
+
 // Connect runs in the background; the outcome arrives through OnChange.
 func (a *App) Connect() {
 	if p := a.State().Phase; p == Waiting || p == Connected {
@@ -143,7 +149,7 @@ func (a *App) Connect() {
 func (a *App) connect(ctx context.Context, gen int) {
 	key, err := wgtypes.GeneratePrivateKey()
 	if err != nil {
-		a.set(gen, State{Phase: Failed, Text: err.Error()})
+		a.fail(gen, err)
 		return
 	}
 	s, err := a.Sessions.Request(ctx, key.PublicKey().String(), a.Wait)
@@ -152,7 +158,7 @@ func (a *App) connect(ctx context.Context, gen int) {
 			_ = a.Sessions.Close(s.ID)
 		}
 		if ctx.Err() == nil {
-			a.set(gen, State{Phase: Failed, Text: err.Error()})
+			a.fail(gen, err)
 		}
 		return
 	}
@@ -169,7 +175,7 @@ func (a *App) connect(ctx context.Context, gen int) {
 	}})
 	if err != nil {
 		_ = a.Sessions.Close(s.ID)
-		a.set(gen, State{Phase: Failed, Text: err.Error()})
+		a.fail(gen, err)
 		return
 	}
 	since := st.Since
@@ -201,7 +207,7 @@ func (a *App) hold(ctx context.Context, gen int, id string) {
 			return
 		case s := <-ended:
 			_, _ = a.Daemon.Do(ipc.Request{Op: "down"})
-			a.set(gen, State{Phase: Failed, Text: fmt.Sprintf("The session ended: %s", s.Status)})
+			a.set(gen, State{Phase: Failed, Text: endedInUse(s.Status), Detail: "session ended: " + s.Status})
 			return
 		case <-t.C:
 			if gw != nil && gw.tick() {
@@ -213,11 +219,7 @@ func (a *App) hold(ctx context.Context, gen int, id string) {
 				continue
 			}
 			_ = a.Sessions.Close(id)
-			text := "The tunnel stopped"
-			if st.Error != "" {
-				text += ": " + st.Error
-			}
-			a.set(gen, State{Phase: Failed, Text: text})
+			a.set(gen, State{Phase: Failed, Text: "The tunnel stopped.", Detail: st.Error})
 			return
 		}
 	}

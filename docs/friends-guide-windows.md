@@ -23,8 +23,9 @@ Colours: grey, not connected; amber, signing in or waiting for approval; green, 
 ## If something is wrong
 
 - Choose **Copy diagnostics** in the menu, then paste into your message to the person who runs the server. It holds no password or key.
-- Red with "denied": the approval was refused. Ask.
-- Red with "expired": nobody approved in 15 minutes. Connect again and tell them.
+- Red with "The request was denied": the approval was refused. Ask.
+- Red with "Nobody approved in time": nobody approved in 15 minutes. Connect again and tell them.
+- Red with anything else: the menu says in one sentence what to do. If it asks for Copy diagnostics, paste that to the person who runs the server; the details are in it.
 - Nothing happens on Connect: choose Quit in the menu and open **MapleGate** from the Start menu. If the menu says the VPN service is not running, restart the PC once.
 
 ## Remove

@@ -43,6 +43,23 @@ func (r *Runner) sleep(ctx context.Context, d time.Duration) error {
 	}
 }
 
+// EndedError is a request that reached an end before the tunnel could be brought up.
+type EndedError struct{ ID, Status, Detail string }
+
+func (e *EndedError) Error() string {
+	return fmt.Sprintf("session %s ended: %s %s", e.ID, e.Status, e.Detail)
+}
+
+// WaitError is a request that was still not active when the wait ran out.
+type WaitError struct {
+	ID, Status string
+	Wait       time.Duration
+}
+
+func (e *WaitError) Error() string {
+	return fmt.Sprintf("session %s is still %s after %s", e.ID, e.Status, e.Wait)
+}
+
 func describe(status string) string {
 	switch status {
 	case "pending":
@@ -83,13 +100,13 @@ func (r *Runner) Request(ctx context.Context, publicKey string, wait time.Durati
 			last = s.Status
 		}
 		if s.Terminal() {
-			return s, fmt.Errorf("session %s ended: %s %s", s.ID, s.Status, s.Error)
+			return s, &EndedError{ID: s.ID, Status: s.Status, Detail: s.Error}
 		}
 		if s.Status == "active" && s.Config != nil {
 			return s, nil
 		}
 		if time.Now().After(deadline) {
-			return s, fmt.Errorf("session %s is still %s after %s", s.ID, s.Status, wait)
+			return s, &WaitError{ID: s.ID, Status: s.Status, Wait: wait}
 		}
 		if err := r.sleep(ctx, interval); err != nil {
 			return s, err

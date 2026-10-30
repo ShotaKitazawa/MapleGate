@@ -85,7 +85,11 @@ func tray() error {
 			return st.Label(time.Now())
 		}
 		a.OnChange = func(st app.State) {
-			events.Add(st.Phase + ": " + st.Text)
+			line := st.Phase + ": " + st.Text
+			if st.Detail != "" {
+				line += " (" + st.Detail + ")"
+			}
+			events.Add(line)
 			systray.SetIcon(icons[st.Phase])
 			status.SetTitle(label(st))
 			if l.SignedIn() {

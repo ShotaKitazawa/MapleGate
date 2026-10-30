@@ -98,12 +98,14 @@ func (s *Server) one(c net.Conn) {
 	}
 }
 
+var ErrServiceDown = errors.New("the VPN service is not running")
+
 type Client struct{ Path string }
 
 func (c Client) Do(req Request) (Status, error) {
 	conn, err := dial(c.Path)
 	if err != nil {
-		return Status{}, fmt.Errorf("the VPN service is not running: %w", err)
+		return Status{}, fmt.Errorf("%w: %w", ErrServiceDown, err)
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))

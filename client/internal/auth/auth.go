@@ -57,6 +57,8 @@ type cache struct {
 // refreshMargin keeps a token that would die mid-request from being used.
 const refreshMargin = time.Minute
 
+var ErrSignInTimeout = errors.New("the sign in was not completed in time")
+
 func (l *Login) now() time.Time {
 	if l.Now != nil {
 		return l.Now()
@@ -190,7 +192,7 @@ func (l *Login) deviceFlow(ctx context.Context, c cache) (string, error) {
 			return "", fmt.Errorf("create token: %w", err)
 		}
 	}
-	return "", errors.New("the sign in was not completed in time")
+	return "", ErrSignInTimeout
 }
 
 func (l *Login) sleep(ctx context.Context, d time.Duration) error {
