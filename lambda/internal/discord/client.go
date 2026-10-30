@@ -86,9 +86,8 @@ func (c *RESTClient) UpdateMessage(ctx context.Context, channelID, messageID str
 	return c.do(ctx, http.MethodPatch, "/channels/"+channelID+"/messages/"+messageID, m, nil)
 }
 
-// Replies answers an interaction that was acknowledged first; the interaction's token is the credential, not the bot's.
+// Replies adds to an interaction that was answered; the interaction's token is the credential, not the bot's.
 type Replies interface {
-	EditOriginal(ctx context.Context, appID, token, content string) error
 	Followup(ctx context.Context, appID, token, content string) error
 }
 
@@ -112,10 +111,6 @@ func (c *RESTClient) webhook(ctx context.Context, method, path string, in any) e
 		return &APIError{Method: method, Path: "/webhooks/…", Status: resp.StatusCode, Body: string(body)}
 	}
 	return nil
-}
-
-func (c *RESTClient) EditOriginal(ctx context.Context, appID, token, content string) error {
-	return c.webhook(ctx, http.MethodPatch, "/webhooks/"+appID+"/"+token+"/messages/@original", map[string]string{"content": content})
 }
 
 // Followup posts a second message that only the person who used the command sees.

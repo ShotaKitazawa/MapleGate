@@ -119,17 +119,13 @@ func commandBody(name string) string {
 }
 
 type fakeReplies struct {
-	edits, followups []string
-	editErr          error
+	followups   []string
+	followupErr error
 }
 
-func (f *fakeReplies) EditOriginal(_ context.Context, app, tok, content string) error {
-	f.edits = append(f.edits, app+"/"+tok+": "+content)
-	return f.editErr
-}
 func (f *fakeReplies) Followup(_ context.Context, app, tok, content string) error {
 	f.followups = append(f.followups, app+"/"+tok+": "+content)
-	return nil
+	return f.followupErr
 }
 
 func downloadEnv(t *testing.T, url string, err error) (*env, *fakeReplies) {
@@ -144,79 +140,79 @@ func commandBodyFor(name string) string {
 	return `{"type":2,"application_id":"app1","token":"tok1","data":{"name":"` + name + `"},"member":{"user":{"id":"u9","username":"bob"}}}`
 }
 
-// run delivers the event the command handed to the async invoke
-func (e *env) runDownload(t *testing.T) {
+func (e *env) download(t *testing.T, name string) events.LambdaFunctionURLResponse {
+	return e.h.Handle(context.Background(), e.signed(commandBodyFor(name)))
+}
+
+func (e *env) runHints(t *testing.T) error {
 	require.Len(t, e.inv.payloads, 1)
 	var ev AsyncEvent
 	require.NoError(t, json.Unmarshal(e.inv.payloads[0], &ev))
-	require.NoError(t, e.h.HandleAsync(context.Background(), ev))
+	return e.h.HandleAsync(context.Background(), ev)
 }
 
-func TestDownloadCommandAcknowledgesPrivatelyAndHandsTheRestOn(t *testing.T) {
+func TestDownloadAnswersWithTheLinkItselfAndPrivately(t *testing.T) {
+	e, _ := downloadEnv(t, "https://example.test/pkg?sig=x", nil)
+
+	r := e.download(t, "download-macos")
+
+	assert.JSONEq(t, `{"type":4,"data":{"flags":64,"content":"[Download link](https://example.test/pkg?sig=x) (works for 15 minutes)"}}`, r.Body,
+		"the long URL stays out of sight, and nothing waits on a later call")
+}
+
+func TestDownloadHandsTheHintsOn(t *testing.T) {
 	e, _ := downloadEnv(t, "https://example.test/x", nil)
 
-	r := e.h.Handle(context.Background(), e.signed(commandBodyFor("download-macos")))
+	e.download(t, "download-macos")
 
-	assert.JSONEq(t, `{"type":5,"data":{"flags":64}}`, r.Body, "deferred, and ephemeral from the start")
 	var ev AsyncEvent
 	require.NoError(t, json.Unmarshal(e.inv.payloads[0], &ev))
 	assert.Equal(t, AsyncEvent{Action: "download", Platform: "macos", AppID: "app1", Token: "tok1"}, ev)
 }
 
-func TestDownloadSendsTheLinkAndThenTheHintsOfThatSystem(t *testing.T) {
-	e, r := downloadEnv(t, "https://example.test/pkg?sig=x", nil)
-
-	e.h.Handle(context.Background(), e.signed(commandBodyFor("download-macos")))
-	e.runDownload(t)
-
-	require.Len(t, r.edits, 1)
-	assert.Equal(t, "app1/tok1: [Download link](https://example.test/pkg?sig=x) (works for 15 minutes)", r.edits[0], "the long URL stays out of sight")
+func TestDownloadHintsAreOfThatSystem(t *testing.T) {
+	e, r := downloadEnv(t, "https://example.test/x", nil)
+	e.download(t, "download-macos")
+	require.NoError(t, e.runHints(t))
 	require.Len(t, r.followups, 1)
 	assert.Contains(t, r.followups[0], "Open Anyway")
 	assert.Contains(t, r.followups[0], "Disconnect")
 	assert.NotContains(t, r.followups[0], "More info")
-}
 
-func TestDownloadHintsForWindows(t *testing.T) {
-	e, r := downloadEnv(t, "https://example.test/x", nil)
-
-	e.h.Handle(context.Background(), e.signed(commandBodyFor("download-windows")))
-	e.runDownload(t)
-
+	e, r = downloadEnv(t, "https://example.test/x", nil)
+	e.download(t, "download-windows")
+	require.NoError(t, e.runHints(t))
 	assert.Contains(t, r.followups[0], "Run anyway")
 	assert.NotContains(t, r.followups[0], "Open Anyway")
 }
 
-func TestDownloadWhenTheLinkCannotBeMadeSaysSoWithoutTheCause(t *testing.T) {
-	e, r := downloadEnv(t, "", errors.New("boom"))
-
-	e.h.Handle(context.Background(), e.signed(commandBodyFor("download-macos")))
-	e.runDownload(t)
-
-	require.Len(t, r.edits, 1)
-	assert.NotContains(t, r.edits[0], "boom")
-	assert.Contains(t, r.edits[0], "could not be made")
-	assert.Empty(t, r.followups, "hints without a link would be noise")
-}
-
-func TestDownloadForASystemWithoutInstaller(t *testing.T) {
-	e, r := downloadEnv(t, "", nil)
-
-	e.h.Handle(context.Background(), e.signed(commandBodyFor("download-windows")))
-	e.runDownload(t)
-
-	assert.Contains(t, r.edits[0], "no installer for windows")
-	assert.Empty(t, r.followups)
-}
-
-func TestDownloadWhenTheHandOverFailsTellsThePersonNow(t *testing.T) {
+func TestDownloadStillGivesTheLinkWhenTheHintsCannotBeHandedOn(t *testing.T) {
 	e, _ := downloadEnv(t, "https://example.test/x", nil)
 	e.inv.err = errors.New("boom")
 
-	r := e.h.Handle(context.Background(), e.signed(commandBodyFor("download-macos")))
+	r := e.download(t, "download-macos")
+
+	assert.Contains(t, r.Body, "Download link")
+}
+
+func TestDownloadWhenTheLinkCannotBeMadeSaysSoWithoutTheCause(t *testing.T) {
+	e, _ := downloadEnv(t, "", errors.New("boom"))
+
+	r := e.download(t, "download-macos")
 
 	assert.Contains(t, r.Body, `"type":4`)
-	assert.Contains(t, r.Body, "Try again")
+	assert.NotContains(t, r.Body, "boom")
+	assert.Contains(t, r.Body, "could not be made")
+	assert.Empty(t, e.inv.payloads, "hints without a link would be noise")
+}
+
+func TestDownloadForASystemWithoutInstaller(t *testing.T) {
+	e, _ := downloadEnv(t, "", nil)
+
+	r := e.download(t, "download-windows")
+
+	assert.Contains(t, r.Body, "no installer for windows")
+	assert.Empty(t, e.inv.payloads)
 }
 
 func TestUnknownCommand(t *testing.T) {

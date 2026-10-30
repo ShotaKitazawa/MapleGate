@@ -115,48 +115,44 @@ var hints = map[string]string{
 		"- Always click Disconnect when you are done.",
 }
 
-// startDownload acknowledges at once and finishes in HandleAsync: the link is one message and the hints another, because
-// the signed URL is long and one message would have to fit both under Discord's limit.
-func (h *Handler) startDownload(ctx context.Context, in discord.Interaction, platform string) events.LambdaFunctionURLResponse {
-	payload, _ := json.Marshal(AsyncEvent{Action: "download", Platform: platform, AppID: in.ApplicationID, Token: in.Token})
-	if err := h.Invoker.InvokeAsync(ctx, payload); err != nil {
-		slog.Error("async invoke", "err", err)
-		return resp(http.StatusOK, map[string]any{
-			"type": discord.ResponseChannelMessage,
-			"data": map[string]any{"content": "The link could not be made. Try again.", "flags": discord.FlagEphemeral},
-		})
-	}
+func ephemeral(content string) events.LambdaFunctionURLResponse {
 	return resp(http.StatusOK, map[string]any{
-		"type": discord.ResponseDeferredChannelMessage,
-		"data": map[string]any{"flags": discord.FlagEphemeral},
+		"type": discord.ResponseChannelMessage,
+		"data": map[string]any{"content": content, "flags": discord.FlagEphemeral},
 	})
 }
 
-func (h *Handler) sendDownload(ctx context.Context, ev AsyncEvent) error {
-	content := "The link could not be made. Ask the person who runs the server."
-	sendHints := false
-	if h.DownloadURL != nil {
-		switch u, err := h.DownloadURL(ctx, ev.Platform); {
-		case err != nil:
-			slog.Error("download link", "err", err)
-		case u == "":
-			content = "There is no installer for " + ev.Platform + " yet."
-		default:
-			content, sendHints = "[Download link]("+u+") (works for 15 minutes)", true
-		}
+// startDownload answers with the link itself. Signing is local, so there is nothing to defer for: a deferred reply
+// that is finished later can fail and leave the person on "thinking…". Only the hints, which can be lost harmlessly,
+// follow in a second message.
+func (h *Handler) startDownload(ctx context.Context, in discord.Interaction, platform string) events.LambdaFunctionURLResponse {
+	if h.DownloadURL == nil {
+		return ephemeral("The link could not be made. Ask the person who runs the server.")
 	}
-	if err := h.Replies.EditOriginal(ctx, ev.AppID, ev.Token, content); err != nil {
-		return err
+	u, err := h.DownloadURL(ctx, platform)
+	switch {
+	case err != nil:
+		slog.Error("download link", "err", err)
+		return ephemeral("The link could not be made. Ask the person who runs the server.")
+	case u == "":
+		return ephemeral("There is no installer for " + platform + " yet.")
 	}
-	if !sendHints {
-		return nil
+	content := "[Download link](" + u + ") (works for 15 minutes)"
+	slog.Info("download link", "platform", platform, "url_length", len(u), "content_length", len(content))
+	payload, _ := json.Marshal(AsyncEvent{Action: "download", Platform: platform, AppID: in.ApplicationID, Token: in.Token})
+	if err := h.Invoker.InvokeAsync(ctx, payload); err != nil {
+		slog.Error("async invoke", "err", err)
 	}
+	return ephemeral(content)
+}
+
+func (h *Handler) sendHints(ctx context.Context, ev AsyncEvent) error {
 	return h.Replies.Followup(ctx, ev.AppID, ev.Token, hints[ev.Platform])
 }
 
 func (h *Handler) HandleAsync(ctx context.Context, ev AsyncEvent) error {
 	if ev.Action == "download" {
-		return h.sendDownload(ctx, ev)
+		return h.sendHints(ctx, ev)
 	}
 	s, err := h.Store.GetSession(ctx, ev.SessionID)
 	if err != nil {
