@@ -32,6 +32,7 @@ Section "Install"
   File "${STAGE}\maplegate.exe"
   File "${STAGE}\maplegated.exe"
   File "${STAGE}\wintun.dll"
+  File "${STAGE}\MapleGate.ico"
   File "${STAGE}\LICENSE-wintun.txt"
 
   ; the settings are for the whole machine and an update keeps the ones already there
@@ -50,13 +51,13 @@ Section "Install"
   nsExec::Exec 'sc start MapleGate'
 
   WriteRegStr HKLM "${RUN_KEY}" "MapleGate" '"$INSTDIR\maplegate.exe"'
-  CreateShortCut "$SMPROGRAMS\MapleGate.lnk" "$INSTDIR\maplegate.exe"
+  CreateShortCut "$SMPROGRAMS\MapleGate.lnk" "$INSTDIR\maplegate.exe" "" "$INSTDIR\MapleGate.ico"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"
   WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayName" "MapleGate"
   WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKLM "${UNINSTALL_KEY}" "Publisher" "MapleGate"
-  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\maplegate.exe"
+  WriteRegStr HKLM "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\MapleGate.ico"
   WriteRegStr HKLM "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair" 1

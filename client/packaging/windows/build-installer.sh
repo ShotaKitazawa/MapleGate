@@ -27,8 +27,8 @@ install -m 644 "$OUT/wintun/wintun/LICENSE.txt" "$OUT/stage/LICENSE-wintun.txt"
 (cd "$ROOT" && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w -H=windowsgui -X main.version=$VERSION" -o "$OUT/stage/maplegate.exe" ./client/cmd/maplegate)
 (cd "$ROOT" && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "$OUT/stage/maplegated.exe" ./client/cmd/maplegated)
 install -m 644 "$CONF" "$OUT/stage/config.json"
-(cd "$ROOT" && go run ./client/cmd/appicon -ico "$OUT/MapleGate.ico")
+(cd "$ROOT" && go run ./client/cmd/appicon -ico "$OUT/stage/MapleGate.ico")
 
-makensis -V2 -DVERSION="$VERSION" -DOUT="$ROOT/build/MapleGate-Setup.exe" -DICON="$OUT/MapleGate.ico" -DSTAGE="$OUT/stage" \
+makensis -V2 -DVERSION="$VERSION" -DOUT="$ROOT/build/MapleGate-Setup.exe" -DICON="$OUT/stage/MapleGate.ico" -DSTAGE="$OUT/stage" \
   "$ROOT/client/packaging/windows/installer.nsi"
 echo "built $ROOT/build/MapleGate-Setup.exe"
