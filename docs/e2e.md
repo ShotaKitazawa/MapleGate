@@ -79,7 +79,7 @@ Risk: **safe** changes nothing lasting, **reversible** changes a setting and put
 | M4 | `kill -9` of the privileged `maplegate tunnel` and of `maplegate up` | the next `up` starts clean; `/var/run/maplegate-tunnel.json` is gone after a normal end | you |
 | M5 | Wi-Fi switch during a session | traffic recovers within about 10 seconds, or ends with a message | you |
 | M6 | `curl -6 ifconfig.io` | fails or shows the node's address, never the local one | you |
-| M7 | A session left open by an earlier run | `up` closes it and asks again | you |
+| M7 | A session already open (another device, or left by a crash) | `up` refuses with "Already connected from another device"; it closes nothing; a leftover ends by itself within 15 minutes | you |
 | M8 | A long run (several hours, sleep and wake, Wi-Fi changes, a container or VM bridge appearing) | no `Failed to send data packets` flood, the node's route follows the real default gateway only, the session stays `active` | you |
 
 ## Tray app and installer on macOS, by hand

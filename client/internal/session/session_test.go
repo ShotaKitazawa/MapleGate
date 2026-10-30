@@ -86,22 +86,15 @@ func TestRequestIgnoresAFailedPoll(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestRequestClosesASessionLeftByAnEarlierRunAndAsksAgain(t *testing.T) {
+func TestRequestLeavesAnExistingSessionAloneAndSaysSo(t *testing.T) {
 	f := &fake{creates: []api.Session{{ID: "old", Status: "approved", Conflict: true}, active}}
-
-	s, err := runner(f).Request(context.Background(), "PUB", time.Minute)
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"old"}, f.deleted)
-	assert.Equal(t, "s", s.ID)
-}
-
-func TestRequestGivesUpWhenTheLeftSessionCannotBeClosed(t *testing.T) {
-	f := &fake{creates: []api.Session{{ID: "old", Status: "approved", Conflict: true}}, deleteErr: errors.New("boom")}
 
 	_, err := runner(f).Request(context.Background(), "PUB", time.Minute)
 
-	assert.ErrorContains(t, err, "close the earlier session")
+	var c *ConflictError
+	require.ErrorAs(t, err, &c)
+	assert.Equal(t, "old", c.ID)
+	assert.Empty(t, f.deleted, "it may be in use from another device")
 }
 
 func TestRequestStopsWaitingAtItsDeadline(t *testing.T) {

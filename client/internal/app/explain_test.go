@@ -21,6 +21,7 @@ func TestExplainIsOneShortSentenceForEachKnownFailure(t *testing.T) {
 		"denied":        {&session.EndedError{Status: "denied"}, "The request was denied."},
 		"not approved":  {&session.EndedError{Status: "expired"}, noApproval},
 		"node failed":   {&session.EndedError{Status: "failed", Detail: "no capacity"}, "The server could not start. Try again later."},
+		"other device":  {&session.ConflictError{ID: "old", Status: "approved"}, "Already connected from another device. Disconnect there, or wait up to 15 minutes."},
 		"wait ran out":  {&session.WaitError{Status: "pending", Wait: time.Minute}, noApproval},
 		"forbidden":     {&api.StatusError{Code: 403, Body: "x"}, "Not allowed. Ask the person who runs the server."},
 		"busy":          {&api.StatusError{Code: 503}, "The server is busy. Try again in a minute."},
@@ -39,7 +40,7 @@ func TestExplainIsOneShortSentenceForEachKnownFailure(t *testing.T) {
 }
 
 func TestEveryExplanationFitsAMenuLine(t *testing.T) {
-	for _, s := range []string{noApproval, unknownFailure, endedBeforeUse("denied"), endedInUse("expired"), endedInUse("closed"), endedInUse("failed"), endedInUse("x")} {
+	for _, s := range []string{noApproval, unknownFailure, endedBeforeUse("denied"), "Already connected from another device. Disconnect there, or wait up to 15 minutes.", endedInUse("expired"), endedInUse("closed"), endedInUse("failed"), endedInUse("x")} {
 		assert.LessOrEqual(t, len(s), 100, s)
 	}
 }

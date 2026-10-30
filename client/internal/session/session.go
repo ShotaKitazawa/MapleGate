@@ -50,6 +50,13 @@ func (e *EndedError) Error() string {
 	return fmt.Sprintf("session %s ended: %s %s", e.ID, e.Status, e.Detail)
 }
 
+// ConflictError is a request refused because the account already has a live session.
+type ConflictError struct{ ID, Status string }
+
+func (e *ConflictError) Error() string {
+	return fmt.Sprintf("session %s (%s) is already open", e.ID, e.Status)
+}
+
 // WaitError is a request that was still not active when the wait ran out.
 type WaitError struct {
 	ID, Status string
@@ -70,24 +77,15 @@ func describe(status string) string {
 	return "status: " + status
 }
 
-// Request asks for a session and waits until it is active. A session left behind by an earlier run cannot be used
-// because its key is gone, so it is closed and the request made again, once.
+// Request asks for a session and waits until it is active. A session that already exists is never closed here: it may
+// be in use from another device, and one left by a crash ends by itself, which costs a wait but cuts nobody off.
 func (r *Runner) Request(ctx context.Context, publicKey string, wait time.Duration) (api.Session, error) {
 	s, err := r.API.Create(ctx, publicKey)
 	if err != nil {
 		return s, err
 	}
 	if s.Conflict {
-		r.say("closing the session %s left by an earlier run", s.ID)
-		if _, err := r.API.Delete(ctx, s.ID); err != nil {
-			return s, fmt.Errorf("close the earlier session: %w", err)
-		}
-		if s, err = r.API.Create(ctx, publicKey); err != nil {
-			return s, err
-		}
-		if s.Conflict {
-			return s, fmt.Errorf("another session %s is still open", s.ID)
-		}
+		return s, &ConflictError{ID: s.ID, Status: s.Status}
 	}
 	r.say("session %s", s.ID)
 

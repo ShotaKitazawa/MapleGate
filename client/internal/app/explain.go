@@ -18,10 +18,13 @@ const noApproval = "Nobody approved in time. Connect again."
 func explain(err error) string {
 	var ended *session.EndedError
 	var slow *session.WaitError
+	var open *session.ConflictError
 	var status *api.StatusError
 	switch {
 	case errors.As(err, &ended):
 		return endedBeforeUse(ended.Status)
+	case errors.As(err, &open):
+		return "Already connected from another device. Disconnect there, or wait up to 15 minutes."
 	case errors.As(err, &slow):
 		return noApproval
 	case errors.As(err, &status):

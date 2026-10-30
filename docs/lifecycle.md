@@ -114,7 +114,7 @@ Each row is a test (see `lambda/internal/scenario`, `node/agent`).
 ### E. Client contract
 - E1 never tear down an established tunnel on API errors or non-terminal statuses; disconnect only on a terminal status.
 - E2 lost POST response: retry returns 409 + session_id; `GET /session` also works.
-- E3 client crash loses the in-memory key: `GET /session`, `DELETE`, request again.
+- E3 client crash loses the in-memory key: the session cannot be used again. The client does not close it, because a 409 looks the same when another device is using it; a leftover ends by itself (pending 15 minutes, no handshake 10 minutes). `maplegate-cli delete <id>` ends it at once.
 - E4 endpoint change after node restart: poll GET until `active`, reconfigure with the same key and address.
 - E5 client clock skew breaks SigV4: surface a clear error.
 
