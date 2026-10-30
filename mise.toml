@@ -79,7 +79,7 @@ run = "go test -tags integration -count=1 -timeout 15m ./lambda/integration/..."
 [tasks.ci-terraform]
 run = """
   for d in infra/bootstrap infra/main; do
-    export TF_DATA_DIR=$d/.terraform-validate
+    export TF_DATA_DIR=$PWD/$d/.terraform-validate
     terraform -chdir=$d init -backend=false &&
     terraform -chdir=$d validate || exit 1
   done

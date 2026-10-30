@@ -1,4 +1,4 @@
-# Playing the game through MapleGate (macOS)
+# Playing through MapleGate (macOS)
 
 The reply to the download command in Discord already carries the points where people get stuck; this is the longer version to point someone to.
 

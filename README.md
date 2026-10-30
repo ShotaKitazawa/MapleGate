@@ -80,14 +80,22 @@ Function URL creation makes Lambda add its own public-access statements to the f
 
 ## Handing out the installer
 
-Put the pkg in the artifacts bucket once per release, and register the commands once (this replaces every other command of the app):
+The installers hold the deployment's settings, so they are built and uploaded by whoever runs the deployment, not by this repository. The settings file is the module's `client_settings` output plus `game_processes`, which is not infrastructure; the keys to upload to are the module's `dist_bucket`, `dist_key_macos` and `dist_key_windows` outputs. Per release, from the deployment:
 
 ```
-aws s3 cp build/MapleGate.pkg s3://<artifacts bucket>/dist/MapleGate.pkg
-scripts/register-discord-command.sh <application id>
+client/packaging/macos/build-pkg.sh <settings file>
+client/packaging/windows/build-installer.sh <settings file>
+aws s3 cp build/MapleGate.pkg s3://<dist_bucket>/<dist_key_macos>
+aws s3 cp build/MapleGate-Setup.exe s3://<dist_bucket>/<dist_key_windows>
 ```
 
-A friend types `/download-macos` (or `/download-windows`, which answers "no installer yet" until `DIST_KEY_WINDOWS` is set) in the server and gets a link that only they can see and that works for 15 minutes. The discord Lambda signs it with its own role, which may read `dist/` and nothing else in the bucket. The pkg holds the deployment's non-secret settings, so anyone in the server can get it; remove the command or the bot's access to the channel to stop that.
+Register the commands once (this replaces every other command of the app; `AWS_REGION` is the deployment's, `PARAM_PREFIX` is `/<name>` when `name` is not the default):
+
+```
+AWS_REGION=<region> scripts/register-discord-command.sh <application id>
+```
+
+A friend types `/download-macos` (or `/download-windows`, which answers "no installer yet" until `dist_key_windows` is set) in the server and gets a link that only they can see and that works for 15 minutes. The discord Lambda signs it with its own role, which may read `dist/` and nothing else in the bucket. The installer holds the deployment's non-secret settings, so anyone in the server can get it; remove the command or the bot's access to the channel to stop that.
 
 ## Debugging with the CLI (no tunnel)
 
