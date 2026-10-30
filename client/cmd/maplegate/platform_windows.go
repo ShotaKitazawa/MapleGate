@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/csv"
 	"fmt"
 	"os"
@@ -54,10 +55,12 @@ func openURL(u string) error {
 
 func openLog() { _ = exec.Command("notepad.exe", daemonLog).Start() }
 
+// The text goes in as base64: PowerShell decodes stdin with the console code page (932 on a Japanese Windows) before a
+// script can switch it, and the environment has a size limit a diagnostics report can exceed.
 func copyToClipboard(text string) error {
 	c := command(context.Background(), "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-		"[Console]::InputEncoding = [Text.Encoding]::UTF8; $input | Out-String | Set-Clipboard")
-	c.Stdin = strings.NewReader(text)
+		"Set-Clipboard -Value ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd())))")
+	c.Stdin = strings.NewReader(base64.StdEncoding.EncodeToString([]byte(text)))
 	return c.Run()
 }
 
