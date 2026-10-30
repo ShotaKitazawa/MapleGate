@@ -2,6 +2,7 @@ package discord
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -52,4 +53,23 @@ func TestRESTClientDropsTokenOn401(t *testing.T) {
 	assert.ErrorAs(t, err, &api)
 	assert.Equal(t, 401, api.Status)
 	assert.Equal(t, 1, dropped)
+}
+
+func TestRepliesUseTheInteractionTokenAndNotTheBots(t *testing.T) {
+	var method, path, auth, body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		method, path, auth, body = r.Method, r.URL.Path, r.Header.Get("Authorization"), string(b)
+	}))
+	defer srv.Close()
+	c := &RESTClient{Token: func(context.Context) (string, error) { return "tok", nil }, HTTP: srv.Client(), Base: srv.URL}
+
+	assert.NoError(t, c.EditOriginal(context.Background(), "app", "itok", "hello"))
+	assert.Equal(t, "PATCH /webhooks/app/itok/messages/@original", method+" "+path)
+	assert.Empty(t, auth)
+	assert.JSONEq(t, `{"content":"hello"}`, body)
+
+	assert.NoError(t, c.Followup(context.Background(), "app", "itok", "more"))
+	assert.Equal(t, "POST /webhooks/app/itok", method+" "+path)
+	assert.JSONEq(t, `{"content":"more","flags":64}`, body, "the second message is private too")
 }

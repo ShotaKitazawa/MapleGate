@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -119,77 +118,105 @@ func commandBody(name string) string {
 	return `{"type":2,"data":{"name":"` + name + `"},"member":{"user":{"id":"u9","username":"bob"}}}`
 }
 
-func TestDownloadCommandAnswersOnlyTheAskerWithALink(t *testing.T) {
-	e := newEnv(t)
-	var asked string
-	e.h.DownloadURL = func(_ context.Context, p string) (string, error) {
-		asked = p
-		return "https://example.test/pkg?sig=x", nil
-	}
-	r := e.h.Handle(context.Background(), e.signed(commandBody("download-macos")))
-	assert.Equal(t, "macos", asked)
-
-	assert.Equal(t, 200, r.StatusCode)
-	var out struct {
-		Type int `json:"type"`
-		Data struct {
-			Content string `json:"content"`
-			Flags   int    `json:"flags"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(r.Body), &out))
-	assert.Equal(t, 4, out.Type)
-	assert.Equal(t, 64, out.Data.Flags, "ephemeral: the link is not shown to the channel")
-	assert.Contains(t, out.Data.Content, "[Download link](https://example.test/pkg?sig=x)", "the long signed URL stays out of sight")
+type fakeReplies struct {
+	edits, followups []string
+	editErr          error
 }
 
-func TestDownloadReplyCarriesTheHintsOfThatSystemOnly(t *testing.T) {
-	e := newEnv(t)
-	e.h.DownloadURL = func(context.Context, string) (string, error) { return "https://example.test/x", nil }
-
-	mac := e.h.Handle(context.Background(), e.signed(commandBody("download-macos"))).Body
-	win := e.h.Handle(context.Background(), e.signed(commandBody("download-windows"))).Body
-
-	assert.Contains(t, mac, "Open Anyway")
-	assert.NotContains(t, mac, "More info")
-	assert.Contains(t, win, "Run anyway")
-	assert.NotContains(t, win, "Open Anyway")
-	assert.Contains(t, mac, "Disconnect")
-	assert.Contains(t, win, "Disconnect")
+func (f *fakeReplies) EditOriginal(_ context.Context, app, tok, content string) error {
+	f.edits = append(f.edits, app+"/"+tok+": "+content)
+	return f.editErr
+}
+func (f *fakeReplies) Followup(_ context.Context, app, tok, content string) error {
+	f.followups = append(f.followups, app+"/"+tok+": "+content)
+	return nil
 }
 
-func TestDownloadReplyDropsTheHintsRatherThanExceedDiscordsLimit(t *testing.T) {
+func downloadEnv(t *testing.T, url string, err error) (*env, *fakeReplies) {
 	e := newEnv(t)
-	long := "https://example.test/" + strings.Repeat("x", 1700)
-	e.h.DownloadURL = func(context.Context, string) (string, error) { return long, nil }
-
-	var out struct {
-		Data struct{ Content string } `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(e.h.Handle(context.Background(), e.signed(commandBody("download-macos"))).Body), &out))
-
-	assert.LessOrEqual(t, len(out.Data.Content), 2000)
-	assert.Contains(t, out.Data.Content, long)
-	assert.NotContains(t, out.Data.Content, "Disconnect")
+	r := &fakeReplies{}
+	e.h.Replies = r
+	e.h.DownloadURL = func(context.Context, string) (string, error) { return url, err }
+	return e, r
 }
 
-func TestDownloadCommandWhenTheLinkCannotBeMade(t *testing.T) {
-	e := newEnv(t)
-	e.h.DownloadURL = func(context.Context, string) (string, error) { return "", errors.New("boom") }
-	r := e.h.Handle(context.Background(), e.signed(commandBody("download-macos")))
-
-	assert.Equal(t, 200, r.StatusCode, "Discord shows a non-2xx as a generic failure; say what happened instead")
-	assert.NotContains(t, r.Body, "boom")
-	assert.Contains(t, r.Body, `"flags":64`)
+func commandBodyFor(name string) string {
+	return `{"type":2,"application_id":"app1","token":"tok1","data":{"name":"` + name + `"},"member":{"user":{"id":"u9","username":"bob"}}}`
 }
 
-func TestDownloadCommandForAPlatformWithoutInstaller(t *testing.T) {
-	e := newEnv(t)
-	e.h.DownloadURL = func(context.Context, string) (string, error) { return "", nil }
-	r := e.h.Handle(context.Background(), e.signed(commandBody("download-windows")))
+// run delivers the event the command handed to the async invoke
+func (e *env) runDownload(t *testing.T) {
+	require.Len(t, e.inv.payloads, 1)
+	var ev AsyncEvent
+	require.NoError(t, json.Unmarshal(e.inv.payloads[0], &ev))
+	require.NoError(t, e.h.HandleAsync(context.Background(), ev))
+}
 
-	assert.Contains(t, r.Body, "no installer for windows")
-	assert.NotContains(t, r.Body, "Download link")
+func TestDownloadCommandAcknowledgesPrivatelyAndHandsTheRestOn(t *testing.T) {
+	e, _ := downloadEnv(t, "https://example.test/x", nil)
+
+	r := e.h.Handle(context.Background(), e.signed(commandBodyFor("download-macos")))
+
+	assert.JSONEq(t, `{"type":5,"data":{"flags":64}}`, r.Body, "deferred, and ephemeral from the start")
+	var ev AsyncEvent
+	require.NoError(t, json.Unmarshal(e.inv.payloads[0], &ev))
+	assert.Equal(t, AsyncEvent{Action: "download", Platform: "macos", AppID: "app1", Token: "tok1"}, ev)
+}
+
+func TestDownloadSendsTheLinkAndThenTheHintsOfThatSystem(t *testing.T) {
+	e, r := downloadEnv(t, "https://example.test/pkg?sig=x", nil)
+
+	e.h.Handle(context.Background(), e.signed(commandBodyFor("download-macos")))
+	e.runDownload(t)
+
+	require.Len(t, r.edits, 1)
+	assert.Equal(t, "app1/tok1: [Download link](https://example.test/pkg?sig=x) (works for 15 minutes)", r.edits[0], "the long URL stays out of sight")
+	require.Len(t, r.followups, 1)
+	assert.Contains(t, r.followups[0], "Open Anyway")
+	assert.Contains(t, r.followups[0], "Disconnect")
+	assert.NotContains(t, r.followups[0], "More info")
+}
+
+func TestDownloadHintsForWindows(t *testing.T) {
+	e, r := downloadEnv(t, "https://example.test/x", nil)
+
+	e.h.Handle(context.Background(), e.signed(commandBodyFor("download-windows")))
+	e.runDownload(t)
+
+	assert.Contains(t, r.followups[0], "Run anyway")
+	assert.NotContains(t, r.followups[0], "Open Anyway")
+}
+
+func TestDownloadWhenTheLinkCannotBeMadeSaysSoWithoutTheCause(t *testing.T) {
+	e, r := downloadEnv(t, "", errors.New("boom"))
+
+	e.h.Handle(context.Background(), e.signed(commandBodyFor("download-macos")))
+	e.runDownload(t)
+
+	require.Len(t, r.edits, 1)
+	assert.NotContains(t, r.edits[0], "boom")
+	assert.Contains(t, r.edits[0], "could not be made")
+	assert.Empty(t, r.followups, "hints without a link would be noise")
+}
+
+func TestDownloadForASystemWithoutInstaller(t *testing.T) {
+	e, r := downloadEnv(t, "", nil)
+
+	e.h.Handle(context.Background(), e.signed(commandBodyFor("download-windows")))
+	e.runDownload(t)
+
+	assert.Contains(t, r.edits[0], "no installer for windows")
+	assert.Empty(t, r.followups)
+}
+
+func TestDownloadWhenTheHandOverFailsTellsThePersonNow(t *testing.T) {
+	e, _ := downloadEnv(t, "https://example.test/x", nil)
+	e.inv.err = errors.New("boom")
+
+	r := e.h.Handle(context.Background(), e.signed(commandBodyFor("download-macos")))
+
+	assert.Contains(t, r.Body, `"type":4`)
+	assert.Contains(t, r.Body, "Try again")
 }
 
 func TestUnknownCommand(t *testing.T) {

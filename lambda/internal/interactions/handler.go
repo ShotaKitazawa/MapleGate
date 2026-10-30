@@ -34,6 +34,11 @@ type AsyncEvent struct {
 	Action    string   `json:"action"`
 	SessionID string   `json:"session_id"`
 	Approver  Approver `json:"approver"`
+
+	// Platform, AppID and Token are for the download command: the token answers that one interaction.
+	Platform string `json:"platform,omitempty"`
+	AppID    string `json:"app_id,omitempty"`
+	Token    string `json:"token,omitempty"`
 }
 
 type Handler struct {
@@ -45,6 +50,7 @@ type Handler struct {
 	PublicKey func(ctx context.Context) (ed25519.PublicKey, error)
 	// DownloadURL returns a short-lived link to the installer for a platform, or "" when there is none yet.
 	DownloadURL func(ctx context.Context, platform string) (string, error)
+	Replies     discord.Replies
 	Now         func() time.Time
 }
 
@@ -78,7 +84,7 @@ func (h *Handler) Handle(ctx context.Context, req events.LambdaFunctionURLReques
 		if !ok || (platform != "macos" && platform != "windows") {
 			return resp(http.StatusBadRequest, nil)
 		}
-		return h.download(ctx, platform)
+		return h.startDownload(ctx, in, platform)
 	case discord.InteractionComponent:
 		action, sid, ok := strings.Cut(in.Data.CustomID, ":")
 		if !ok || (action != "approve" && action != "deny") || sid == "" {
@@ -97,8 +103,6 @@ func (h *Handler) Handle(ctx context.Context, req events.LambdaFunctionURLReques
 	return resp(http.StatusBadRequest, nil)
 }
 
-const maxContent = 2000
-
 // hints are the places people get stuck, not the steps: the installer is unsigned and the first sign in needs a password set.
 var hints = map[string]string{
 	"macos": "- Not signed by Apple: right-click the file, Open, Open. If there is no such button: System Settings, Privacy & Security, Open Anyway.\n" +
@@ -111,29 +115,49 @@ var hints = map[string]string{
 		"- Always click Disconnect when you are done.",
 }
 
-func (h *Handler) download(ctx context.Context, platform string) events.LambdaFunctionURLResponse {
-	content := "The link could not be made. Ask the person who runs the server."
-	if h.DownloadURL != nil {
-		switch u, err := h.DownloadURL(ctx, platform); {
-		case err != nil:
-			slog.Error("download link", "err", err)
-		case u == "":
-			content = "There is no installer for " + platform + " yet."
-		default:
-			content = "[Download link](" + u + ") (works for 15 minutes)"
-			// the signed URL carries a session token and can be long; a message over Discord's limit is refused whole
-			if len(content)+len(hints[platform])+1 <= maxContent {
-				content += "\n" + hints[platform]
-			}
-		}
+// startDownload acknowledges at once and finishes in HandleAsync: the link is one message and the hints another, because
+// the signed URL is long and one message would have to fit both under Discord's limit.
+func (h *Handler) startDownload(ctx context.Context, in discord.Interaction, platform string) events.LambdaFunctionURLResponse {
+	payload, _ := json.Marshal(AsyncEvent{Action: "download", Platform: platform, AppID: in.ApplicationID, Token: in.Token})
+	if err := h.Invoker.InvokeAsync(ctx, payload); err != nil {
+		slog.Error("async invoke", "err", err)
+		return resp(http.StatusOK, map[string]any{
+			"type": discord.ResponseChannelMessage,
+			"data": map[string]any{"content": "The link could not be made. Try again.", "flags": discord.FlagEphemeral},
+		})
 	}
 	return resp(http.StatusOK, map[string]any{
-		"type": discord.ResponseChannelMessage,
-		"data": map[string]any{"content": content, "flags": discord.FlagEphemeral},
+		"type": discord.ResponseDeferredChannelMessage,
+		"data": map[string]any{"flags": discord.FlagEphemeral},
 	})
 }
 
+func (h *Handler) sendDownload(ctx context.Context, ev AsyncEvent) error {
+	content := "The link could not be made. Ask the person who runs the server."
+	sendHints := false
+	if h.DownloadURL != nil {
+		switch u, err := h.DownloadURL(ctx, ev.Platform); {
+		case err != nil:
+			slog.Error("download link", "err", err)
+		case u == "":
+			content = "There is no installer for " + ev.Platform + " yet."
+		default:
+			content, sendHints = "[Download link]("+u+") (works for 15 minutes)", true
+		}
+	}
+	if err := h.Replies.EditOriginal(ctx, ev.AppID, ev.Token, content); err != nil {
+		return err
+	}
+	if !sendHints {
+		return nil
+	}
+	return h.Replies.Followup(ctx, ev.AppID, ev.Token, hints[ev.Platform])
+}
+
 func (h *Handler) HandleAsync(ctx context.Context, ev AsyncEvent) error {
+	if ev.Action == "download" {
+		return h.sendDownload(ctx, ev)
+	}
 	s, err := h.Store.GetSession(ctx, ev.SessionID)
 	if err != nil {
 		return err

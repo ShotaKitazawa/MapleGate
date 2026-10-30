@@ -53,10 +53,12 @@ func main() {
 	ssmClient := ssm.NewFromConfig(awsCfg)
 	params := &config.Params{Client: ssmClient, Prefix: cfg.ParamPrefix}
 
+	rest := discord.NewREST(func(ctx context.Context) (string, error) { return params.Get(ctx, "discord/bot_token") }, params.Invalidate)
 	h := &interactions.Handler{
 		Cfg:     cfg,
 		Store:   &store.Dynamo{Client: dynamodb.NewFromConfig(awsCfg), Table: cfg.TableName},
-		Discord: discord.NewREST(func(ctx context.Context) (string, error) { return params.Get(ctx, "discord/bot_token") }, params.Invalidate),
+		Discord: rest,
+		Replies: rest,
 		Invoker: selfInvoker{client: lambdasvc.NewFromConfig(awsCfg), name: os.Getenv("AWS_LAMBDA_FUNCTION_NAME")},
 		Now:     time.Now,
 		DownloadURL: func(ctx context.Context, platform string) (string, error) {

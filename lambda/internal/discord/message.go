@@ -7,9 +7,10 @@ const (
 	InteractionCommand   = 2
 	InteractionComponent = 3
 
-	ResponsePong                  = 1
-	ResponseChannelMessage        = 4
-	ResponseDeferredUpdateMessage = 6
+	ResponsePong                   = 1
+	ResponseChannelMessage         = 4
+	ResponseDeferredChannelMessage = 5
+	ResponseDeferredUpdateMessage  = 6
 
 	FlagEphemeral = 64
 
@@ -18,8 +19,10 @@ const (
 )
 
 type Interaction struct {
-	Type int `json:"type"`
-	Data struct {
+	Type          int    `json:"type"`
+	ApplicationID string `json:"application_id"`
+	Token         string `json:"token"`
+	Data          struct {
 		CustomID string `json:"custom_id"`
 		Name     string `json:"name"`
 	} `json:"data"`

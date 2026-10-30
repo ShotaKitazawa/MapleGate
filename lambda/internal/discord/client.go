@@ -85,3 +85,40 @@ func (c *RESTClient) PostMessage(ctx context.Context, channelID string, m Messag
 func (c *RESTClient) UpdateMessage(ctx context.Context, channelID, messageID string, m Message) error {
 	return c.do(ctx, http.MethodPatch, "/channels/"+channelID+"/messages/"+messageID, m, nil)
 }
+
+// Replies answers an interaction that was acknowledged first; the interaction's token is the credential, not the bot's.
+type Replies interface {
+	EditOriginal(ctx context.Context, appID, token, content string) error
+	Followup(ctx context.Context, appID, token, content string) error
+}
+
+func (c *RESTClient) webhook(ctx context.Context, method, path string, in any) error {
+	b, err := json.Marshal(in)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.Base+path, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode/100 != 2 {
+		return &APIError{Method: method, Path: "/webhooks/…", Status: resp.StatusCode, Body: string(body)}
+	}
+	return nil
+}
+
+func (c *RESTClient) EditOriginal(ctx context.Context, appID, token, content string) error {
+	return c.webhook(ctx, http.MethodPatch, "/webhooks/"+appID+"/"+token+"/messages/@original", map[string]string{"content": content})
+}
+
+// Followup posts a second message that only the person who used the command sees.
+func (c *RESTClient) Followup(ctx context.Context, appID, token, content string) error {
+	return c.webhook(ctx, http.MethodPost, "/webhooks/"+appID+"/"+token, map[string]any{"content": content, "flags": FlagEphemeral})
+}
