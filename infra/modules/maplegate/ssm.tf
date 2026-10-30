@@ -1,5 +1,5 @@
 locals {
-  param_prefix = "/gamevpn"
+  param_prefix = "/${var.name}"
 }
 
 # 値は手入力するため Terraform は初期プレースホルダのみ作成する

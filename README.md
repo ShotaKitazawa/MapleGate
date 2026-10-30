@@ -2,7 +2,7 @@
 
 An on-demand WireGuard gateway on AWS, gated by IAM Identity Center sign-in and a Discord approval button. A small node starts when someone is approved and stops itself when nobody is using it, so an idle deployment costs close to nothing. It was written to let a few friends reach a game's servers from one region.
 
-This is a reference implementation for AWS, not a portable product: it uses DynamoDB, Lambda Function URLs with IAM auth, IAM Identity Center, EventBridge Scheduler, EC2, S3 and SSM Parameter Store directly, and nothing abstracts them. Names and regions are variables (see `infra/main/variables.tf`); a provider other than AWS would be a rewrite of the Lambdas and the client's sign-in.
+This is a reference implementation for AWS, not a portable product: it uses DynamoDB, Lambda Function URLs with IAM auth, IAM Identity Center, EventBridge Scheduler, EC2, S3 and SSM Parameter Store directly, and nothing abstracts them. Names and the region are inputs of the Terraform module (see `infra/modules/maplegate/variables.tf`); a provider other than AWS would be a rewrite of the Lambdas and the client's sign-in.
 
 How the node, the Lambdas and DynamoDB stay consistent (and what happens when each of them breaks) is specified in [docs/lifecycle.md](docs/lifecycle.md). The client plan is in [docs/client.md](docs/client.md); what has been checked against the real environment, and what has not, is in [docs/e2e.md](docs/e2e.md).
 
@@ -21,24 +21,24 @@ DynamoDB is the single source of truth; nothing is ever pushed to the node.
 
 ### AWS
 
-Administration (Terraform, the console) uses an IAM user in the `admin` group, which has only `AdministratorAccess`, signed in with `aws login`. Friends are Identity Center users and never get more than the `gamevpn-player` permission set. Identity Center's MFA setting covers everyone in the instance and is changed only in the console (Settings, Authentication); it is switched off here because the Discord approval is the second factor.
+Administration (Terraform, the console) uses an IAM user in the `admin` group, which has only `AdministratorAccess`, signed in with `aws login`. Friends are Identity Center users and never get more than the `<name>-player` permission set (`name` is a variable of the module, `gamevpn` by default; the examples below use that). Identity Center's MFA setting covers everyone in the instance and is changed only in the console (Settings, Authentication); it is switched off here because the Discord approval is the second factor.
 
 Run `terraform plan` and read it before every `apply`.
 
 1. Use a Paid-plan account. Free-plan accounts may not be able to enable Organizations / Identity Center; upgrade first if they cannot.
 2. Enable AWS Organizations, then IAM Identity Center (organization instance).
-3. Create the state bucket once with local state:
+3. Optional: a state bucket in S3 (names are global, so give `bucket` yours), made once with local state. Any other backend works as well:
    ```
-   terraform -chdir=infra/bootstrap init && terraform -chdir=infra/bootstrap apply
+   terraform -chdir=infra/bootstrap init && terraform -chdir=infra/bootstrap apply -var region=<region> -var bucket=<state bucket>
    ```
-4. Build the binaries Terraform uploads and zips, then apply:
+4. The infrastructure is a module, `infra/modules/maplegate`. `infra/main` is the smallest root that calls it; a deployment of your own calls the module from its own root (`source = "github.com/ShotaKitazawa/MapleGate//infra/modules/maplegate?ref=<version>"`) and passes `build_dir`, the directory of the binaries Terraform uploads and zips (`mise run build` writes `build/`). Region and credentials belong to the provider of that root. Build, then apply:
    ```
    mise run build
    terraform -chdir=infra/main init && terraform -chdir=infra/main apply
    ```
    Reserved concurrency (session 2 / discord 3 / janitor 1) fails on accounts whose Lambda concurrency limit is 10, because reserving any leaves fewer than 10 unreserved;
    pass `-var session_reserved_concurrency=-1 -var discord_reserved_concurrency=-1 -var janitor_reserved_concurrency=-1` there. An unreserved janitor can overlap itself, which its conditional transitions tolerate.
-   The monthly budget notice is e-mailed: copy `infra/main/terraform.tfvars.example` to `terraform.tfvars` and set `budget_email`.
+   Copy `infra/main/terraform.tfvars.example` to `terraform.tfvars` and set `region`, `artifacts_bucket` and `budget_email` (the monthly budget notice is e-mailed there). The other inputs, with their defaults, are in `infra/modules/maplegate/variables.tf`. The module's outputs include `client_settings`, the values the installers are built with.
 5. Updating the agent or node scripts: `mise run build`, then `terraform apply`. The node picks them up on its next boot; a new agent binary is promoted only after it reaches DynamoDB, otherwise the previous one is restored.
    Replacing the instance itself needs an explicit `terraform apply -replace=aws_instance.vpn` and ends live sessions.
 
@@ -48,9 +48,9 @@ Run `terraform plan` and read it before every `apply`.
 2. Create the approval channel. Enable Developer Mode and copy the channel ID.
 3. Store the values (Terraform creates placeholders and ignores later value changes):
    ```
-   aws ssm put-parameter --region us-west-2 --overwrite --type SecureString --name /gamevpn/discord/bot_token --value '<bot token>'
-   aws ssm put-parameter --region us-west-2 --overwrite --type String --name /gamevpn/discord/app_public_key --value '<application public key (hex)>'
-   aws ssm put-parameter --region us-west-2 --overwrite --type String --name /gamevpn/discord/channel_id --value '<channel id>'
+   aws ssm put-parameter --region <region> --overwrite --type SecureString --name /gamevpn/discord/bot_token --value '<bot token>'
+   aws ssm put-parameter --region <region> --overwrite --type String --name /gamevpn/discord/app_public_key --value '<application public key (hex)>'
+   aws ssm put-parameter --region <region> --overwrite --type String --name /gamevpn/discord/channel_id --value '<channel id>'
    ```
    Lambdas cache these for 5 minutes, so a rotated value takes effect without a redeploy.
 4. Set the `discord_interactions_url` Terraform output as the Interactions Endpoint URL in the Developer Portal.
@@ -60,7 +60,7 @@ Run `terraform plan` and read it before every `apply`.
 
 The session API is an `AWS_IAM` Function URL: a request without a valid SigV4 signature, or from a principal that may not call it, is rejected with 403 before the Lambda runs. The caller's identity is the Identity Center user name taken from the signed role session (`AWSReservedSSO_*/<user name>`); other roles are refused because they choose their own session name.
 
-Terraform creates the `players` group and the `gamevpn-player` permission set (it can only call the session API) and assigns the group to the account. People are added by hand, which Terraform does not do for you: in the IAM Identity Center console create the user (this sends the invitation e-mail) and add it to `players`. Check members with `aws identitystore list-group-memberships --identity-store-id <id> --group-id <group id>`.
+Terraform creates the `players` group (`players_group_name`) and the `gamevpn-player` permission set (it can only call the session API) and assigns the group to the account. People are added by hand, which Terraform does not do for you: in the IAM Identity Center console create the user (this sends the invitation e-mail) and add it to `players`. Check members with `aws identitystore list-group-memberships --identity-store-id <id> --group-id <group id>`.
 
 Function URL creation makes Lambda add its own public-access statements to the function policy. After switching a URL to `AWS_IAM`, remove the stale ones: `aws lambda remove-permission --function-name gamevpn-session --statement-id FunctionURLAllowPublicAccess` and the same for `FunctionURLAllowInvokeAction`.
 

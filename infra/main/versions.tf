@@ -1,28 +1,25 @@
 terraform {
   required_version = ">= 1.11"
   required_providers {
-    archive = {
-      source  = "hashicorp/archive"
-      version = "~> 2.0"
-    }
     aws = {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
   }
 
-  backend "s3" {
-    bucket       = "example-tfstate"
-    key          = "main/terraform.tfstate"
-    region       = "us-west-2"
-    use_lockfile = true
-  }
+  # The state is local until a backend is named. For a shared one, the bucket made by ../bootstrap works:
+  #   backend "s3" {
+  #     bucket       = "<state bucket>"
+  #     key          = "maplegate/terraform.tfstate"
+  #     region       = "<region>"
+  #     use_lockfile = true
+  #   }
 }
 
 provider "aws" {
-  region = "us-west-2"
+  region = var.region
 
   default_tags {
-    tags = { Project = "gamevpn" }
+    tags = { Project = var.name }
   }
 }

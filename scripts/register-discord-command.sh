@@ -2,7 +2,7 @@
 # Registers /download-macos and /download-windows (replacing any other command of the app). The bot token goes to curl on stdin so it is neither printed nor in the process list.
 set -eu
 APP_ID=${1:?usage: register-discord-command.sh <application id>}
-REGION=${AWS_REGION:-us-west-2}
+REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:?set AWS_REGION to the region of the deployment}}
 PREFIX=${PARAM_PREFIX:-/gamevpn}
 
 TOKEN=$(aws ssm get-parameter --region "$REGION" --with-decryption --name "$PREFIX/discord/bot_token" --query Parameter.Value --output text)

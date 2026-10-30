@@ -1,5 +1,5 @@
-resource "aws_dynamodb_table" "gamevpn" {
-  name                        = "gamevpn"
+resource "aws_dynamodb_table" "this" {
+  name                        = var.name
   billing_mode                = "PROVISIONED"
   read_capacity               = 1
   write_capacity              = 1

@@ -1,22 +1,34 @@
 data "aws_vpc" "default" {
+  count   = var.subnet_id == null ? 1 : 0
   default = true
 }
 
 data "aws_subnets" "default" {
+  count = var.subnet_id == null ? 1 : 0
   filter {
     name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
+    values = [data.aws_vpc.default[0].id]
   }
 }
+
+locals {
+  subnet_id = var.subnet_id != null ? var.subnet_id : sort(data.aws_subnets.default[0].ids)[0]
+}
+
+data "aws_subnet" "node" {
+  id = local.subnet_id
+}
+
+data "aws_region" "current" {}
 
 data "aws_ssm_parameter" "al2023_arm64" {
   name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64"
 }
 
 resource "aws_security_group" "vpn" {
-  name        = "gamevpn"
+  name        = var.name
   description = "WireGuard"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = data.aws_subnet.node.vpc_id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "wg" {
@@ -34,7 +46,7 @@ resource "aws_vpc_security_group_egress_rule" "all" {
 }
 
 resource "aws_iam_role" "vpn" {
-  name = "gamevpn-node"
+  name = "${var.name}-node"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -74,7 +86,7 @@ resource "aws_iam_role_policy" "node_table" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["dynamodb:Query", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
-      Resource = aws_dynamodb_table.gamevpn.arn
+      Resource = aws_dynamodb_table.this.arn
       Condition = {
         "ForAllValues:StringEquals" = { "dynamodb:LeadingKeys" = ["WORK", "NODE"] }
       }
@@ -104,14 +116,14 @@ resource "aws_iam_role_policy" "node_artifacts" {
 }
 
 resource "aws_iam_instance_profile" "vpn" {
-  name = "gamevpn-node"
+  name = "${var.name}-node"
   role = aws_iam_role.vpn.name
 }
 
 resource "aws_instance" "vpn" {
   ami                                  = data.aws_ssm_parameter.al2023_arm64.value
-  instance_type                        = "t4g.nano"
-  subnet_id                            = sort(data.aws_subnets.default.ids)[0]
+  instance_type                        = var.instance_type
+  subnet_id                            = local.subnet_id
   vpc_security_group_ids               = [aws_security_group.vpn.id]
   iam_instance_profile                 = aws_iam_instance_profile.vpn.name
   associate_public_ip_address          = true
@@ -128,10 +140,10 @@ resource "aws_instance" "vpn" {
     encrypted   = true
   }
 
-  user_data = templatefile("${path.module}/../../node/cloud-init.yaml", {
+  user_data = templatefile("${path.module}/../../../node/cloud-init.yaml", {
     bucket         = aws_s3_bucket.artifacts.id
-    region         = "us-west-2"
-    table          = aws_dynamodb_table.gamevpn.name
+    region         = data.aws_region.current.region
+    table          = aws_dynamodb_table.this.name
     pubkey_param   = aws_ssm_parameter.server_public_key.name
     wg_address     = var.wg_address
     wg_port        = var.wg_port
@@ -149,5 +161,5 @@ resource "aws_instance" "vpn" {
 
   depends_on = [aws_s3_object.node, aws_s3_object.agent]
 
-  tags = { Name = "gamevpn" }
+  tags = { Name = var.name }
 }

@@ -1,6 +1,6 @@
 # Budgets e-mails by itself: a cost notice needs no topic, function or Discord on the way.
 resource "aws_budgets_budget" "monthly" {
-  name         = "gamevpn-monthly"
+  name         = "${var.name}-monthly"
   budget_type  = "COST"
   limit_amount = tostring(var.monthly_budget_usd)
   limit_unit   = "USD"

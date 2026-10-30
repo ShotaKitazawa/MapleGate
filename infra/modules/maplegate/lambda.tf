@@ -2,14 +2,15 @@ data "aws_caller_identity" "current" {}
 
 locals {
   account_id   = data.aws_caller_identity.current.account_id
-  session_name = "gamevpn-session"
-  discord_name = "gamevpn-discord"
-  janitor_name = "gamevpn-janitor"
-  instance_arn = "arn:aws:ec2:us-west-2:${local.account_id}:instance/${aws_instance.vpn.id}"
-  param_arn    = "arn:aws:ssm:us-west-2:${local.account_id}:parameter${local.param_prefix}/*"
-  discord_arn  = "arn:aws:lambda:us-west-2:${local.account_id}:function:${local.discord_name}"
-  lambda_env = {
-    TABLE_NAME           = aws_dynamodb_table.gamevpn.name
+  session_name = "${var.name}-session"
+  discord_name = "${var.name}-discord"
+  janitor_name = "${var.name}-janitor"
+  instance_arn = "arn:aws:ec2:${data.aws_region.current.region}:${local.account_id}:instance/${aws_instance.vpn.id}"
+  param_arn    = "arn:aws:ssm:${data.aws_region.current.region}:${local.account_id}:parameter${local.param_prefix}/*"
+  discord_arn  = "arn:aws:lambda:${data.aws_region.current.region}:${local.account_id}:function:${local.discord_name}"
+  # An empty value is left out: the provider plans it as null on every run.
+  lambda_env = merge({
+    TABLE_NAME           = aws_dynamodb_table.this.name
     INSTANCE_ID          = aws_instance.vpn.id
     PARAM_PREFIX         = local.param_prefix
     WG_PORT              = tostring(var.wg_port)
@@ -17,15 +18,20 @@ locals {
     SESSION_EXTEND_EVERY = var.session_extend_every
     HANDSHAKE_IDLE       = "${var.handshake_idle_seconds}s"
     DIST_BUCKET          = aws_s3_bucket.artifacts.bucket
-  }
+    DIST_KEY_MACOS       = var.dist_key_macos
+    # The addresses are handed out from the first three octets of the subnet, which variables.tf requires to be a /24.
+    WG_SUBNET_PREFIX = join(".", slice(split(".", split("/", var.wg_subnet)[0]), 0, 3))
+    # Boot grace plus idle stop plus ten minutes: past that an idle node is not stopping by itself.
+    NODE_OVERSTAY_AFTER = "${var.boot_grace_seconds + var.idle_stop_seconds + 600}s"
+  }, var.dist_key_windows == "" ? {} : { DIST_KEY_WINDOWS = var.dist_key_windows })
   functions = toset(["session", "discord", "janitor"])
 }
 
 data "archive_file" "fn" {
   for_each    = local.functions
   type        = "zip"
-  source_file = "${path.module}/../../build/${each.key}/bootstrap"
-  output_path = "${path.module}/../../build/${each.key}.zip"
+  source_file = "${var.build_dir}/${each.key}/bootstrap"
+  output_path = "${var.build_dir}/${each.key}.zip"
 }
 
 data "aws_iam_policy_document" "assume_lambda" {
@@ -44,7 +50,7 @@ data "aws_iam_policy_document" "common" {
     actions = [
       "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query",
     ]
-    resources = [aws_dynamodb_table.gamevpn.arn]
+    resources = [aws_dynamodb_table.this.arn]
   }
   statement {
     actions   = ["ssm:GetParameter"]
@@ -82,7 +88,7 @@ data "aws_iam_policy_document" "discord_dist" {
 
 resource "aws_iam_role" "fn" {
   for_each           = local.functions
-  name               = "gamevpn-${each.key}"
+  name               = "${var.name}-${each.key}"
   assume_role_policy = data.aws_iam_policy_document.assume_lambda.json
 }
 
@@ -115,7 +121,7 @@ resource "aws_iam_role_policy_attachment" "logs" {
 
 resource "aws_cloudwatch_log_group" "fn" {
   for_each          = local.functions
-  name              = "/aws/lambda/gamevpn-${each.key}"
+  name              = "/aws/lambda/${var.name}-${each.key}"
   retention_in_days = var.log_retention_days
 }
 
@@ -134,7 +140,7 @@ locals {
 
 resource "aws_lambda_function" "fn" {
   for_each                       = local.functions
-  function_name                  = "gamevpn-${each.key}"
+  function_name                  = "${var.name}-${each.key}"
   role                           = aws_iam_role.fn[each.key].arn
   runtime                        = "provided.al2023"
   architectures                  = ["arm64"]

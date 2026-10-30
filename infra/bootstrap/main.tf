@@ -9,11 +9,11 @@ terraform {
 }
 
 provider "aws" {
-  region = "us-west-2"
+  region = var.region
 }
 
 resource "aws_s3_bucket" "tfstate" {
-  bucket = "example-tfstate"
+  bucket = var.bucket
 }
 
 resource "aws_s3_bucket_versioning" "tfstate" {
@@ -38,4 +38,13 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+variable "region" {
+  type = string
+}
+
+variable "bucket" {
+  description = "Name of the state bucket; names are global"
+  type        = string
 }

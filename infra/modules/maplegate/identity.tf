@@ -3,17 +3,19 @@ data "aws_ssoadmin_instances" "this" {}
 locals {
   identity_store_id = tolist(data.aws_ssoadmin_instances.this.identity_store_ids)[0]
   sso_instance_arn  = tolist(data.aws_ssoadmin_instances.this.arns)[0]
+  # The portal URL is the identity store id unless the administrator set an alias.
+  start_url = var.identity_center_start_url != "" ? var.identity_center_start_url : "https://${local.identity_store_id}.awsapps.com/start"
 }
 
 # Members are added by hand in the Identity Center console: invitations and MFA enrolment are manual anyway, and e-mail addresses stay out of the code and the state.
 resource "aws_identitystore_group" "players" {
   identity_store_id = local.identity_store_id
-  display_name      = "players"
+  display_name      = var.players_group_name
   description       = "May request a VPN session"
 }
 
 resource "aws_ssoadmin_permission_set" "player" {
-  name             = "gamevpn-player"
+  name             = "${var.name}-player"
   instance_arn     = local.sso_instance_arn
   session_duration = var.player_session_duration
 }

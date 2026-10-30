@@ -20,7 +20,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "artifacts" {
 }
 
 locals {
-  node_dir   = "${path.module}/../../node"
+  node_dir   = "${path.module}/../../../node"
   node_files = setunion(fileset(local.node_dir, "*.sh"), fileset(local.node_dir, "*.conf"), fileset(local.node_dir, "units/*"))
 }
 
@@ -36,6 +36,6 @@ resource "aws_s3_object" "node" {
 resource "aws_s3_object" "agent" {
   bucket      = aws_s3_bucket.artifacts.id
   key         = "agent/vpn-agent"
-  source      = "${path.module}/../../build/agent/vpn-agent"
-  source_hash = filemd5("${path.module}/../../build/agent/vpn-agent")
+  source      = "${var.build_dir}/agent/vpn-agent"
+  source_hash = filemd5("${var.build_dir}/agent/vpn-agent")
 }

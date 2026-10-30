@@ -9,7 +9,7 @@ data "aws_iam_policy_document" "assume_scheduler" {
 }
 
 resource "aws_iam_role" "scheduler" {
-  name               = "gamevpn-scheduler"
+  name               = "${var.name}-scheduler"
   assume_role_policy = data.aws_iam_policy_document.assume_scheduler.json
 }
 
@@ -27,7 +27,7 @@ resource "aws_iam_role_policy" "scheduler" {
 
 # Retries are off: the next minute's run covers whatever a skipped one missed.
 resource "aws_scheduler_schedule" "janitor" {
-  name                = "gamevpn-janitor"
+  name                = "${var.name}-janitor"
   schedule_expression = "rate(1 minute)"
 
   flexible_time_window {
