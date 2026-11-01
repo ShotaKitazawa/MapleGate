@@ -1,6 +1,10 @@
 # Using MapleGate
 
-## The client (macOS)
+## The client
+
+There are two programs: the tray app `maplegate` (also a terminal client through `maplegate up`) and the daemon `maplegated`, which owns the tunnel and the routes and runs with elevated rights. The installers below put both in place; the notes in this section are for running the client from a build.
+
+### macOS
 
 `mise run build` produces `build/maplegate`. Put the deployment's settings (none of them is secret) in `~/Library/Application Support/MapleGate/config.json`:
 
@@ -8,11 +12,21 @@
 {"start_url": "<Identity Center start URL>", "region": "us-west-2", "account_id": "<account>", "role_name": "gamevpn-player", "api_url": "<session_api_url output>", "game_processes": ["<program name of the game>"]}
 ```
 
-`build/maplegate up` asks for the administrator password once (the tunnel needs root), signs in in the browser the first time only, asks for a session, waits for the Discord approval (unless the deployment turned it off), and brings up the tunnel. Ctrl-C closes the session and removes the routes. `maplegate up` is the terminal client; `maplegate login` only signs in. All traffic goes through the node, IPv6 included (the node drops it). Windows is not implemented yet.
+`build/maplegate up` asks for the administrator password once (the tunnel needs root), signs in in the browser the first time only, asks for a session, waits for the Discord approval (unless the deployment turned it off), and brings up the tunnel. Ctrl-C closes the session and removes the routes. `maplegate up` is the terminal client; `maplegate login` only signs in. All traffic goes through the node, IPv6 included (the node drops it).
 
-## The installer (macOS)
+### Windows
+
+The settings file is the same JSON. The installer puts it in `%ProgramData%\MapleGate\config.json`, and `maplegated` runs as a Windows service. `game_processes` holds the executable's whole name as `tasklist` shows it, with `.exe` (for example `Game.exe`); the macOS name differs, so each installer gets its own list.
+
+## The installers
+
+### macOS
 
 `client/packaging/macos/build-pkg.sh <settings file>` builds `build/MapleGate.pkg` (the tray app, the daemon, `MapleGate.app` to open it from Spotlight, log rotation) and `build/MapleGate-uninstall.pkg`. The bot's reply to the download command carries the points where people get stuck (the unsigned installer, the first password); the guides below are the longer version. The settings file is the JSON above; it is copied into the package, so a friend never writes it. What a friend does is in [docs/friends-guide.md](friends-guide.md). The pkg is not signed, so the guide says how to get past Gatekeeper.
+
+### Windows
+
+`client/packaging/windows/build-installer.sh <settings file>` builds `build/MapleGate-Setup.exe` with NSIS (`makensis`): the tray app, the service, the icon, a Start menu entry and an uninstaller. Wintun's DLL is downloaded at build time and checked against a pinned hash; its licence is installed beside it. The settings file is copied in, as on macOS. The installer is not signed, so the guide says how to get past SmartScreen. What a friend does is in [friends-guide-windows.md](friends-guide-windows.md).
 
 ## Debugging with the CLI (no tunnel)
 
