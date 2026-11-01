@@ -34,6 +34,7 @@ Section "Install"
   File "${STAGE}\wintun.dll"
   File "${STAGE}\MapleGate.ico"
   File "${STAGE}\LICENSE-wintun.txt"
+  File "${STAGE}\THIRD_PARTY_LICENSES.txt"
 
   ; the settings are for the whole machine and an update keeps the ones already there
   CreateDirectory "$APPDATA\MapleGate"

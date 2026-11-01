@@ -27,6 +27,7 @@ done
 
 install -m 755 "$ROOT/client/packaging/macos/uninstall.sh" "$OUT/root/usr/local/share/maplegate/uninstall.sh"
 install -m 644 "$CONF" "$OUT/root/usr/local/share/maplegate/config.json"
+"$ROOT/scripts/third-party-licenses.sh" darwin arm64 "$OUT/root/usr/local/share/maplegate/THIRD_PARTY_LICENSES.txt"
 # a flood of errors from the tunnel must not fill the disk
 install -m 644 "$ROOT/client/packaging/macos/maplegated.newsyslog.conf" "$OUT/root/etc/newsyslog.d/maplegated.conf"
 install -m 644 "$ROOT/client/packaging/macos/com.maplegate.daemon.plist" "$OUT/root/Library/LaunchDaemons/"
