@@ -16,16 +16,11 @@ run = "go test ./..."
 
 [tasks.ci]
 run = """
-  mise run ci-install &&
   mise run ci-deps &&
   mise run ci-fmt &&
   mise run ci-lint &&
-  mise run ci-test &&
-  mise run ci-build
+  mise run ci-test
 """
-
-[tasks.ci-install]
-run = "go mod download"
 
 [tasks.ci-deps]
 run = "node scripts/check_deps_age_backend.ts"
@@ -41,25 +36,18 @@ run = """
   go vet ./... &&
   go vet -tags integration ./lambda/integration/ &&
   GOOS=windows GOARCH=amd64 go vet ./client/... &&
-  shellcheck node/*.sh
+  GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go vet ./client/internal/... ./client/cmd/maplegated ./client/cmd/maplegate-cli &&
+  shellcheck node/*.sh &&
+  for d in infra/bootstrap infra/main; do
+    export TF_DATA_DIR=$PWD/$d/.terraform-validate
+    terraform -chdir=$d init -backend=false &&
+    terraform -chdir=$d validate || exit 1
+  done
 """
 
 [tasks.ci-test]
 run = """
   go test ./...
-"""
-
-[tasks.ci-build]
-run = """
-  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/session &&
-  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/discord &&
-  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./lambda/cmd/janitor &&
-  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /dev/null ./node/agent/cmd/vpn-agent &&
-  go build -o /dev/null ./client/cmd/maplegate-cli &&
-  go build -o /dev/null ./client/cmd/maplegate &&
-  go build -o /dev/null ./client/cmd/maplegated &&
-  GOOS=windows GOARCH=amd64 go build -o /dev/null ./client/cmd/maplegate &&
-  GOOS=windows GOARCH=amd64 go build -o /dev/null ./client/cmd/maplegated
 """
 
 [tasks.test-dynamodb]
@@ -75,15 +63,6 @@ run = """
 
 [tasks.test-integration]
 run = "go test -tags integration -count=1 -timeout 15m ./lambda/integration/..."
-
-[tasks.ci-terraform]
-run = """
-  for d in infra/bootstrap infra/main; do
-    export TF_DATA_DIR=$PWD/$d/.terraform-validate
-    terraform -chdir=$d init -backend=false &&
-    terraform -chdir=$d validate || exit 1
-  done
-"""
 
 [tasks.pre-merge]
 run = """

@@ -2,6 +2,8 @@ name: Tests
 
 on:
   push:
+    branches: [main]
+  pull_request:
 
 jobs:
   test:
@@ -25,4 +27,3 @@ jobs:
           restore-keys: go-
       - run: mise run build
       - run: mise run ci
-      - run: mise run ci-terraform
