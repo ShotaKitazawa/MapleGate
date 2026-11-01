@@ -132,6 +132,26 @@ func TestCreateSession(t *testing.T) {
 	assert.Equal(t, "msg1", w.DiscordMessageID, "the janitor reads the message id from WORK")
 }
 
+func TestCreateSessionWithoutApproval(t *testing.T) {
+	e := newEnv()
+	e.h.Cfg.AutoApprove = true
+	e.h.Cfg.WGSubnet = "10.66.0"
+	e.h.Cfg.SessionTTL = 4 * time.Hour
+	r := e.do("POST", "/session", "alice", createBody())
+
+	assert.Equal(t, 202, r.StatusCode)
+	assert.Equal(t, "approved", body(t, r)["status"])
+	assert.Empty(t, e.dc.posted, "nothing is asked of Discord")
+	s, err := e.st.GetSession(context.Background(), "sid1")
+	require.NoError(t, err)
+	assert.Equal(t, store.StatusApproved, s.Status)
+	assert.NotEmpty(t, s.Address)
+	assert.Equal(t, e.now.Add(4*time.Hour), s.ExpiresAt)
+	w, err := e.st.GetWork(context.Background(), "sid1")
+	require.NoError(t, err)
+	assert.Empty(t, w.DiscordMessageID, "the janitor has no message to keep in step")
+}
+
 func TestCreateSessionValidation(t *testing.T) {
 	e := newEnv()
 	for _, b := range []string{`{}`, `{"public_key":"abc"}`, `not json`} {

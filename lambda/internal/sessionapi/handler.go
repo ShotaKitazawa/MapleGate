@@ -14,6 +14,7 @@ import (
 	"github.com/ShotaKitazawa/MapleGate/internal/store"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/config"
 	"github.com/ShotaKitazawa/MapleGate/lambda/internal/discord"
+	"github.com/ShotaKitazawa/MapleGate/lambda/internal/ipam"
 	"github.com/aws/aws-lambda-go/events"
 )
 
@@ -81,6 +82,9 @@ func (h *Handler) create(ctx context.Context, user string, req events.LambdaFunc
 		return jsonResp(http.StatusServiceUnavailable, map[string]string{"error": "temporarily unavailable"})
 	}
 
+	if h.Cfg.AutoApprove {
+		return h.autoApprove(ctx, s, now)
+	}
 	if err := h.postApproval(ctx, s); err != nil {
 		slog.Error("post approval", "session", s.ID, "err", err)
 		_ = h.Store.Transition(ctx, s.ID, []store.Status{store.StatusPending}, store.StatusFailed,
@@ -88,6 +92,26 @@ func (h *Handler) create(ctx context.Context, user string, req events.LambdaFunc
 		return jsonResp(http.StatusBadGateway, map[string]string{"error": "approval request failed"})
 	}
 	return jsonResp(http.StatusAccepted, map[string]string{"session_id": s.ID, "status": string(store.StatusPending)})
+}
+
+// autoApprove is for a deployment that has no approver: signing in with Identity Center is the only gate.
+func (h *Handler) autoApprove(ctx context.Context, s store.Session, now time.Time) events.LambdaFunctionURLResponse {
+	expires := now.Add(h.Cfg.SessionTTL)
+	addr, err := ipam.Allocate(ctx, h.Store, h.Cfg.WGSubnet, s.ID, expires)
+	if err == nil {
+		err = h.Store.Transition(ctx, s.ID, []store.Status{store.StatusPending}, store.StatusApproved,
+			store.Update{Address: addr, Approver: "auto", ExpiresAt: expires, ApprovedAt: now})
+		if err != nil {
+			_ = h.Store.ReleaseIP(ctx, addr, s.ID)
+		}
+	}
+	if err != nil {
+		slog.Error("auto approve", "session", s.ID, "err", err)
+		_ = h.Store.Transition(ctx, s.ID, []store.Status{store.StatusPending}, store.StatusFailed,
+			store.Update{Error: "no free address", CloseReason: "error"})
+		return jsonResp(http.StatusServiceUnavailable, map[string]string{"error": "temporarily unavailable"})
+	}
+	return jsonResp(http.StatusAccepted, map[string]string{"session_id": s.ID, "status": string(store.StatusApproved)})
 }
 
 func (h *Handler) postApproval(ctx context.Context, s store.Session) error {

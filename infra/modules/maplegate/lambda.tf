@@ -23,7 +23,8 @@ locals {
     WG_SUBNET_PREFIX = join(".", slice(split(".", split("/", var.wg_subnet)[0]), 0, 3))
     # Boot grace plus idle stop plus ten minutes: past that an idle node is not stopping by itself.
     NODE_OVERSTAY_AFTER = "${var.boot_grace_seconds + var.idle_stop_seconds + 600}s"
-  }, var.dist_key_windows == "" ? {} : { DIST_KEY_WINDOWS = var.dist_key_windows })
+    }, var.dist_key_windows == "" ? {} : { DIST_KEY_WINDOWS = var.dist_key_windows },
+  var.require_discord_approval ? {} : { AUTO_APPROVE = "true" })
   functions = toset(["session", "discord", "janitor"])
 }
 

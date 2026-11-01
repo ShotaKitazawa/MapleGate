@@ -95,6 +95,12 @@ variable "discord_reserved_concurrency" {
   default = 3
 }
 
+# false lets a signed-in player start a session without anyone pressing Approve in Discord.
+variable "require_discord_approval" {
+  type    = bool
+  default = true
+}
+
 variable "session_ttl" {
   type    = string
   default = "4h"
