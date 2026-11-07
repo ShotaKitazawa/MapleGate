@@ -259,3 +259,12 @@ func TestACancelledSignInDoesNotKeepRunningForTheNextRequest(t *testing.T) {
 
 	assert.Len(t, r.opened, 2)
 }
+
+func TestQuietContextNeverStartsASignIn(t *testing.T) {
+	opened := 0
+	l := &Login{Dir: t.TempDir(), OIDC: nil, Open: func(string) error { opened++; return nil }}
+	_, err := l.Token(Quiet(context.Background()))
+	if !errors.Is(err, ErrSignInRequired) || opened != 0 {
+		t.Fatalf("err=%v opened=%d", err, opened)
+	}
+}

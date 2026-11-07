@@ -60,6 +60,15 @@ const refreshMargin = time.Minute
 
 var ErrSignInTimeout = errors.New("the sign in was not completed in time")
 
+// ErrSignInRequired is returned instead of starting a sign in when the context forbids prompting.
+var ErrSignInRequired = errors.New("the sign in has expired; sign in again")
+
+type quietKey struct{}
+
+// Quiet marks calls that no person is waiting on, such as the poll of a connected session; they fail rather than open a browser.
+// Prompting from them opened a new tab every poll once the SSO session had lapsed.
+func Quiet(ctx context.Context) context.Context { return context.WithValue(ctx, quietKey{}, true) }
+
 func (l *Login) now() time.Time {
 	if l.Now != nil {
 		return l.Now()
@@ -148,6 +157,9 @@ func (l *Login) register(ctx context.Context, c cache) (cache, error) {
 }
 
 func (l *Login) deviceFlow(ctx context.Context, c cache) (string, error) {
+	if quiet, _ := ctx.Value(quietKey{}).(bool); quiet {
+		return "", ErrSignInRequired
+	}
 	c, err := l.register(ctx, c)
 	if err != nil {
 		return "", err

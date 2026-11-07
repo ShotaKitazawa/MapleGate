@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ShotaKitazawa/MapleGate/client/internal/api"
+	"github.com/ShotaKitazawa/MapleGate/client/internal/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -122,4 +123,16 @@ func TestWatchStopsWhenTheContextIsDone(t *testing.T) {
 	_, err := runner(f).Watch(ctx, "s")
 
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestWatchTellsWhenTheSignInLapsesAndWhenItIsBack(t *testing.T) {
+	f := &fake{gets: []any{auth.ErrSignInRequired, auth.ErrSignInRequired, active, api.Session{ID: "s", Status: "closed"}}}
+	var told []bool
+	r := runner(f)
+	r.OnLapse = func(v bool) { told = append(told, v) }
+
+	_, err := r.Watch(context.Background(), "s")
+
+	require.NoError(t, err)
+	assert.Equal(t, []bool{true, false}, told)
 }

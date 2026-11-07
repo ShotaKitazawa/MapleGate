@@ -3,10 +3,12 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ShotaKitazawa/MapleGate/client/internal/api"
+	"github.com/ShotaKitazawa/MapleGate/client/internal/auth"
 )
 
 type API interface {
@@ -23,6 +25,8 @@ type Runner struct {
 	Sleep func(context.Context, time.Duration) error
 	// Poll is the interval while connected.
 	Poll time.Duration
+	// OnLapse is told when Watch can no longer poll because the sign in has expired, and again once it can; it may be nil.
+	OnLapse func(lapsed bool)
 }
 
 func (r *Runner) say(f string, a ...any) {
@@ -125,19 +129,32 @@ func (r *Runner) Request(ctx context.Context, publicKey string, wait time.Durati
 // Watch returns when the session ends or ctx is done. A failed poll never ends it, so a dropped network cannot
 // take down a tunnel that is still good.
 func (r *Runner) Watch(ctx context.Context, id string) (api.Session, error) {
+	ctx = auth.Quiet(ctx)
 	every := r.Poll
 	if every <= 0 {
 		every = 30 * time.Second
+	}
+	lapsed := false
+	lapse := func(v bool) {
+		if v != lapsed && r.OnLapse != nil {
+			r.OnLapse(v)
+		}
+		lapsed = v
 	}
 	for {
 		if err := r.sleep(ctx, every); err != nil {
 			return api.Session{}, err
 		}
 		s, err := r.API.Get(ctx, id)
+		if errors.Is(err, auth.ErrSignInRequired) {
+			lapse(true)
+			continue
+		}
 		if err != nil {
 			r.say("poll failed: %v", err)
 			continue
 		}
+		lapse(false)
 		if s.Terminal() {
 			return s, nil
 		}
@@ -146,7 +163,7 @@ func (r *Runner) Watch(ctx context.Context, id string) (api.Session, error) {
 
 // Close ends the session at the server. It uses a fresh context so that a Ctrl-C does not cancel the call.
 func (r *Runner) Close(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	ctx, cancel := context.WithTimeout(auth.Quiet(context.Background()), 8*time.Second)
 	defer cancel()
 	_, err := r.API.Delete(ctx, id)
 	return err

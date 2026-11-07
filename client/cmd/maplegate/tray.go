@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"image/color"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/systray"
@@ -44,12 +46,17 @@ func tray() error {
 		a.Say("Finish signing in in your browser (code " + code + ")")
 	}
 	client := &api.Client{Base: s.APIURL, Region: s.Region, Creds: l.Provider()}
+	var lapsed atomic.Bool
+	var onLapse func(bool)
 	a = &app.App{
-		Sessions: &session.Runner{API: client, Progress: func(m string) { events.Add(m); a.Say(m) }},
-		Daemon:   ipc.Client{Path: daemonSocket},
-		Wait:     10 * time.Minute,
-		Poll:     5 * time.Second,
-		Forget:   l.Forget,
+		Sessions: &session.Runner{
+			API: client, Progress: func(m string) { events.Add(m); a.Say(m) },
+			OnLapse: func(v bool) { onLapse(v) },
+		},
+		Daemon: ipc.Client{Path: daemonSocket},
+		Wait:   10 * time.Minute,
+		Poll:   5 * time.Second,
+		Forget: l.Forget,
 	}
 	if len(s.GameProcesses) > 0 {
 		a.Game = &app.Game{
@@ -68,6 +75,8 @@ func tray() error {
 		connect := systray.AddMenuItem("Connect", "")
 		disconnect := systray.AddMenuItem("Disconnect", "")
 		disconnect.Disable()
+		signIn := systray.AddMenuItem("Sign in again", "")
+		signIn.Hide()
 		systray.AddSeparator()
 		signOut := systray.AddMenuItem("Sign out", "")
 		showLog := systray.AddMenuItem("Show log", "")
@@ -82,7 +91,21 @@ func tray() error {
 					st.Text = "Not signed in"
 				}
 			}
+			if st.Phase == app.Connected && lapsed.Load() {
+				st.Text += " · sign in expired"
+			}
 			return st.Label(time.Now())
+		}
+		onLapse = func(v bool) {
+			lapsed.Store(v)
+			status.SetTitle(label(a.State()))
+			if v {
+				events.Add("sign in expired; the session is no longer polled")
+				signIn.Show()
+				notify("MapleGate", "Sign in expired. Choose \"Sign in again\" from the menu.")
+			} else {
+				signIn.Hide()
+			}
 		}
 		a.OnChange = func(st app.State) {
 			line := st.Phase + ": " + st.Text
@@ -90,6 +113,10 @@ func tray() error {
 				line += " (" + st.Detail + ")"
 			}
 			events.Add(line)
+			if st.Phase != app.Connected {
+				lapsed.Store(false)
+				signIn.Hide()
+			}
 			systray.SetIcon(icons[st.Phase])
 			status.SetTitle(label(st))
 			if l.SignedIn() {
@@ -141,6 +168,12 @@ func tray() error {
 					} else {
 						notify("MapleGate", "Diagnostics copied. Paste them into your message.")
 					}
+				case <-signIn.ClickedCh:
+					go func() {
+						if _, err := l.Token(context.Background()); err != nil {
+							notify("MapleGate", "Sign in failed: "+err.Error())
+						}
+					}()
 				case <-signOut.ClickedCh:
 					a.SignOut()
 				case <-quit.ClickedCh:
