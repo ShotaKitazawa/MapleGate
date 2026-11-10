@@ -6,7 +6,8 @@ set -eu
 CONF=${1:?usage: build-installer.sh <settings file>}
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
 OUT="$ROOT/build/windows"
-VERSION=${VERSION:-0.1.0}
+VERSION=${VERSION:-$(git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null | sed s/^v// || true)}
+VERSION=${VERSION:-0.0.0}
 
 # the DLL comes from outside, so it is checked against the hashes pinned here before it is used
 WINTUN_URL=https://www.wintun.net/builds/wintun-0.14.1.zip
