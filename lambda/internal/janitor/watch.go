@@ -18,12 +18,16 @@ func (j *Janitor) watch(ctx context.Context, h *store.Health, state ec2ctl.State
 		return
 	}
 	if state != ec2ctl.StateRunning {
+		if !h.RunningSince.IsZero() {
+			slog.Info("node stopped", "instance", j.Cfg.InstanceID, "state", string(state), "running_seconds", int(now.Sub(h.RunningSince).Seconds()))
+		}
 		h.RunningSince, h.IdleSince = time.Time{}, time.Time{}
 		h.UnresponsiveAlertedAt, h.OverstayAlertedAt = time.Time{}, time.Time{}
 		return
 	}
 	if h.RunningSince.IsZero() {
 		h.RunningSince = now
+		slog.Info("node running", "instance", j.Cfg.InstanceID)
 	}
 
 	// A heartbeat older than the boot is a leftover from the previous run, so silence only counts after the grace period.

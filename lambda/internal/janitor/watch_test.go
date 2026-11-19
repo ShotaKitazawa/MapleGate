@@ -1,8 +1,10 @@
 package janitor
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -227,4 +229,20 @@ func TestAnExtensionRenewsTheLeaseOfTheAddress(t *testing.T) {
 	require.NotEmpty(t, spy.renewed["10.66.0.2"], "an address whose lease is not renewed is up for grabs once the original one runs out")
 	assert.True(t, spy.renewed["10.66.0.2"][len(spy.renewed["10.66.0.2"])-1].After(e.now.Add(3*time.Hour)))
 	assert.ErrorIs(t, e.st.LeaseIP(ctx, "10.66.0.2", "other", e.now.Add(time.Hour)), store.ErrConflict)
+}
+
+func TestAStoppedNodeIsLoggedWithHowLongItRan(t *testing.T) {
+	var buf bytes.Buffer
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(old) })
+	e := newEnv()
+	e.approved(t, "s1", "alice", "10.66.0.2")
+	e.minutes(t, 30, true)
+
+	e.ec2.state = ec2ctl.StateStopped
+	e.minutes(t, 1, false)
+
+	assert.Contains(t, buf.String(), `"msg":"node running"`)
+	assert.Regexp(t, `"msg":"node stopped".*"running_seconds":(17|18)\d\d`, buf.String())
 }

@@ -67,3 +67,14 @@ AWS_REGION=<region> scripts/register-discord-command.sh <application id>
 ```
 
 A friend types `/download-macos` (or `/download-windows`, which answers "no installer yet" until `dist_key_windows` is set) in the server and gets a link that only they can see and that works for 15 minutes. The discord Lambda signs it with its own role, which may read `dist/` and nothing else in the bucket. The installer holds the deployment's non-secret settings, so anyone in the server can get it; remove the command or the bot's access to the channel to stop that.
+
+## Looking back at use
+
+The Lambdas write one JSON line to their CloudWatch log group (`/aws/lambda/<name>-*`, kept `log_retention_days`, 90 by default) when a session is approved (`session approved`) or ends (`session ended`, with the user, the reason, and `held_seconds`), and when the janitor sees the node start or stop (`node running`, `node stopped` with `running_seconds`). Session rows expire from DynamoDB, and the node's own stop is not in CloudTrail, so these lines are the only history. In Logs Insights, over the three log groups:
+
+```
+fields @timestamp, user, reason, held_seconds | filter msg = "session ended" | sort @timestamp desc
+fields @timestamp, running_seconds | filter msg = "node stopped" | stats sum(running_seconds) / 3600 as hours
+```
+
+`running_seconds` is counted from the janitor's first look at the node, so it is within a minute or two of the real figure.

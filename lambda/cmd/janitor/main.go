@@ -19,6 +19,8 @@ import (
 )
 
 func main() {
+	// JSON keeps the fields queryable in CloudWatch Logs Insights, which the text format does not
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx := context.Background()
 	cfg, err := config.Load()
 	if err != nil {
@@ -39,7 +41,7 @@ func main() {
 			SessionTTL: cfg.SessionTTL, ExtendEvery: cfg.ExtendEvery,
 			InstanceID: cfg.InstanceID, UnresponsiveAfter: cfg.UnresponsiveAfter, OverstayAfter: cfg.OverstayAfter, AlertRepeat: cfg.AlertRepeat,
 		},
-		Store:   &store.Dynamo{Client: dynamodb.NewFromConfig(awsCfg), Table: cfg.TableName},
+		Store:   store.Audit{Store: &store.Dynamo{Client: dynamodb.NewFromConfig(awsCfg), Table: cfg.TableName}},
 		EC2:     &ec2ctl.AWS{EC2: ec2.NewFromConfig(awsCfg), InstanceID: cfg.InstanceID},
 		Discord: discord.NewREST(func(ctx context.Context) (string, error) { return params.Get(ctx, "discord/bot_token") }, params.Invalidate),
 		ChannelID: func(ctx context.Context) (string, error) {

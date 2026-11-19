@@ -114,7 +114,7 @@ variable "session_extend_every" {
 
 variable "log_retention_days" {
   type    = number
-  default = 14
+  default = 90
 }
 
 variable "artifacts_bucket" {
